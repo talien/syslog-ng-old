@@ -31,3 +31,16 @@ m4/ltoptions.m4
 m4/ltsugar.m4
 m4/ltversion.m4
 m4/pkg.m4
+/debian/autoreconf.*
+/debian/build-tree/
+/debian/files
+/debian/*debhelper*
+/debian/*.substvars
+/debian/syslog-ng-core/
+/debian/syslog-ng-module-json/
+/debian/syslog-ng-module-mongodb/
+/debian/syslog-ng-module-sql/
+/debian/syslog-ng/
+/debian/libsyslog-ng-*/
+/debian/tmp/
+/.pc/

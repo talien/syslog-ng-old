@@ -13,7 +13,9 @@ autogen_submodules()
 	origdir=`pwd`
 
 	if [ -f .gitmodules ]; then
-		git submodule update --init --recursive
+		if [ -z "$skip_git" ] || [ "$skip_git" = 0 ]; then
+			git submodule update --init --recursive
+		fi
 	fi
 
 	for submod in $SUBMODULES; do

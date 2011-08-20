@@ -27,8 +27,8 @@ autogen_submodules()
 	for submod in $SUBMODULES; do
 		echo "Running autogen in '$submod'..."
 		cd "$submod"
-		if [ -x autogen.sh ]; then
-			./autogen.sh
+		if [ -e autogen.sh ]; then
+			/bin/sh ./autogen.sh
 		elif [ -f configure.in ] || [ -f configure.ac ]; then
 			autoreconf
 		else

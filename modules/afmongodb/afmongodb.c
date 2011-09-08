@@ -439,12 +439,14 @@ afmongodb_dd_init(LogPipe *s)
 
   self->queue = log_dest_driver_acquire_queue(&self->super, afmongodb_dd_format_persist_name(self));
 
+  stats_lock();
   stats_register_counter(0, SCS_MONGODB | SCS_DESTINATION, self->super.super.id,
 			 afmongodb_dd_format_stats_instance(self),
 			 SC_TYPE_STORED, &self->stored_messages);
   stats_register_counter(0, SCS_MONGODB | SCS_DESTINATION, self->super.super.id,
 			 afmongodb_dd_format_stats_instance(self),
 			 SC_TYPE_DROPPED, &self->dropped_messages);
+  stats_unlock();
 
   log_queue_set_counters(self->queue, self->stored_messages, self->dropped_messages);
   afmongodb_dd_start_thread(self);
@@ -495,6 +497,17 @@ afmongodb_dd_free(LogPipe *d)
 }
 
 static void
+afmongodb_dd_queue_notify(gpointer user_data)
+{
+  MongoDBDestDriver *self = (MongoDBDestDriver *)user_data;
+
+  g_mutex_lock(self->queue_mutex);
+  g_cond_signal(self->writer_thread_wakeup_cond);
+  log_queue_reset_parallel_push(self->queue);
+  g_mutex_unlock(self->queue_mutex);
+}
+
+static void
 afmongodb_dd_queue(LogPipe *s, LogMessage *msg, const LogPathOptions *path_options, gpointer user_data)
 {
   MongoDBDestDriver *self = (MongoDBDestDriver *)s;
@@ -507,12 +520,15 @@ afmongodb_dd_queue(LogPipe *s, LogMessage *msg, const LogPathOptions *path_optio
   g_mutex_lock(self->queue_mutex);
   self->last_msg_stamp = cached_g_current_time_sec ();
   queue_was_empty = log_queue_get_length(self->queue) == 0;
-  log_queue_push_tail(self->queue, msg, path_options);
   g_mutex_unlock(self->queue_mutex);
+  
+  log_queue_push_tail(self->queue, msg, path_options);
 
   g_mutex_lock(self->suspend_mutex);
   if (queue_was_empty && !self->writer_thread_suspended)
-    g_cond_signal(self->writer_thread_wakeup_cond);
+    {
+      log_queue_set_parallel_push(self->queue, 1, afmongodb_dd_queue_notify, self, NULL);
+    }
   g_mutex_unlock(self->suspend_mutex);
 }
 

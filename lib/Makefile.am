@@ -9,11 +9,11 @@ export top_srcdir
 
 lib_LTLIBRARIES = libsyslog-ng.la
 libsyslog_ng_la_LIBADD = @CORE_DEPS_LIBS@
-libsyslog_ng_la_LDFLAGS = -no-undefined
+libsyslog_ng_la_LDFLAGS = -no-undefined -release @VERSION@
 
 module_LTLIBRARIES = libsyslog-ng-crypto.la
 libsyslog_ng_crypto_la_LIBADD = @CORE_DEPS_LIBS@ libsyslog-ng.la
-libsyslog_ng_crypto_la_LDFLAGS = -no-undefined -avoid-versions
+libsyslog_ng_crypto_la_LDFLAGS = -no-undefined -avoid-version
 
 # this is intentionally formatted so conflicts are less likely to arise. one name in every line.
 pkginclude_HEADERS = 		\
@@ -24,6 +24,7 @@ pkginclude_HEADERS = 		\
 	block-ref-parser.h	\
 	center.h		\
 	cfg.h                   \
+	cfg-grammar.h           \
 	cfg-lexer.h		\
 	cfg-parser.h		\
 	children.h		\

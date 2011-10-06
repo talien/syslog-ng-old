@@ -39,9 +39,9 @@ m4/pkg.m4
 /debian/*debhelper*
 /debian/*.substvars
 /debian/syslog-ng-core/
-/debian/syslog-ng-module-json/
-/debian/syslog-ng-module-mongodb/
-/debian/syslog-ng-module-sql/
+/debian/syslog-ng-mod-json/
+/debian/syslog-ng-mod-mongodb/
+/debian/syslog-ng-mod-sql/
 /debian/syslog-ng/
 /debian/libsyslog-ng-*/
 /debian/tmp/

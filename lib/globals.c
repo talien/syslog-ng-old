@@ -28,3 +28,4 @@ GlobalConfig *configuration;
 int cfg_parser_debug;
 gchar *module_path = MODULE_PATH;
 gchar *default_modules = DEFAULT_MODULES;
+gboolean silent_module_load = FALSE;

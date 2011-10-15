@@ -179,10 +179,11 @@ plugin_dlopen_module(const gchar *module_name, const gchar *module_path)
   g_strfreev(module_path_dirs);
   if (!plugin_module_name)
     {
-      msg_error("Plugin module not found in 'module-path'",
-                evt_tag_str("module-path", module_path),
-                evt_tag_str("module", module_name),
-                NULL);
+      if (!silent_module_load)
+	msg_error("Plugin module not found in 'module-path'",
+		  evt_tag_str("module-path", module_path),
+		  evt_tag_str("module", module_name),
+		  NULL);
       return NULL;
     }
   msg_debug("Trying to open module",

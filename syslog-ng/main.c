@@ -75,6 +75,7 @@ static GOptionEntry syslogng_options[] =
   { "module-registry",     0,         0, G_OPTION_ARG_NONE, &display_module_registry, "Display module information", NULL },
   { "default-modules",     0,         0, G_OPTION_ARG_STRING, &default_modules, "Set the set of auto-loaded modules, default=" DEFAULT_MODULES, "<module-list>" },
   { "seed",              'S',         0, G_OPTION_ARG_NONE, &dummy, "Does nothing, the need to seed the random generator is autodetected", NULL},
+  { "silent-module-load", 'q',        0, G_OPTION_ARG_NONE, &silent_module_load, "Load modules silently, not printing a warning when one's not found", NULL},
 #ifdef YYDEBUG
   { "yydebug",           'y',         0, G_OPTION_ARG_NONE, &cfg_parser_debug, "Enable configuration parser debugging", NULL },
 #endif

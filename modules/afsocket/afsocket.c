@@ -95,9 +95,13 @@ afsocket_open_socket(GSockAddr *bind_addr, int stream_or_dgram, int *fd)
   if (sock != -1)
     {
       cap_t saved_caps;
+      static int on = 1;
 
       g_fd_set_nonblock(sock, TRUE);
       g_fd_set_cloexec(sock, TRUE);
+
+      setsockopt (sock, SOL_SOCKET, SO_PASSCRED, &on, sizeof (on));
+
       saved_caps = g_process_cap_save();
       g_process_cap_modify(CAP_NET_BIND_SERVICE, TRUE);
       g_process_cap_modify(CAP_DAC_OVERRIDE, TRUE);

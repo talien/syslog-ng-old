@@ -100,13 +100,51 @@ log_transport_plain_read_method(LogTransport *s, gpointer buf, gsize buflen, GSo
       } sas;
       
       socklen_t salen = sizeof(sas);
+      struct iovec iov;
+      struct msghdr mh;
+      struct cmsghdr *cmsg;
+      union
+        {
+          struct cmsghdr cmsghdr;
+          uint8_t buf[CMSG_SPACE(sizeof(struct ucred)) +
+                      CMSG_SPACE(sizeof(struct timeval)) +
+                      CMSG_SPACE(sizeof(int))];
+        } control;
+      struct ucred *uc = NULL;
+
+      memset (&iov, 0, sizeof(struct iovec));
+      iov.iov_base = buf;
+      iov.iov_len = buflen;
+
+      memset (&mh, 0, sizeof(struct msghdr));
+      mh.msg_iov = &iov;
+      mh.msg_iovlen = 1;
+      mh.msg_control = &control;
+      mh.msg_controllen = sizeof(control);
 
       do
         {
+#if 0
           rc = recvfrom(self->super.fd, buf, buflen, 0, 
                         (struct sockaddr *) &sas, &salen);
+#else
+          salen = 0;
+          rc = recvmsg(self->super.fd, &mh, 0);
+#endif
         }
       while (rc == -1 && errno == EINTR);
+
+      if (rc != -1)
+        {
+          for (cmsg = CMSG_FIRSTHDR(&mh); cmsg; cmsg = CMSG_NXTHDR(&mh, cmsg))
+            {
+              if (cmsg->cmsg_level == SOL_SOCKET &&
+                  cmsg->cmsg_type == SCM_CREDENTIALS &&
+                  cmsg->cmsg_len == CMSG_LEN(sizeof(struct ucred)))
+                uc = (struct ucred *) CMSG_DATA(cmsg);
+            }
+        }
+
       if (rc != -1 && salen && sa)
         (*sa) = g_sockaddr_new((struct sockaddr *) &sas, salen);
     }

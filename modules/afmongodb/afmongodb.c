@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2011 BalaBit IT Ltd, Budapest, Hungary
- * Copyright (c) 2010-2011 Gergely Nagy <algernon@balabit.hu>
+ * Copyright (c) 2010-2012 BalaBit IT Ltd, Budapest, Hungary
+ * Copyright (c) 2010-2012 Gergely Nagy <algernon@balabit.hu>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -403,7 +403,9 @@ static void
 afmongodb_dd_stop_thread (MongoDBDestDriver *self)
 {
   self->writer_thread_terminate = TRUE;
+  g_mutex_lock(self->queue_mutex);
   g_cond_signal(self->writer_thread_wakeup_cond);
+  g_mutex_unlock(self->queue_mutex);
   g_thread_join(self->writer_thread);
 }
 
@@ -515,27 +517,21 @@ static void
 afmongodb_dd_queue(LogPipe *s, LogMessage *msg, const LogPathOptions *path_options, gpointer user_data)
 {
   MongoDBDestDriver *self = (MongoDBDestDriver *)s;
-  gboolean queue_was_empty;
   LogPathOptions local_options;
 
   if (!path_options->flow_control_requested)
     path_options = log_msg_break_ack(msg, path_options, &local_options);
 
-  g_mutex_lock(self->queue_mutex);
   self->last_msg_stamp = cached_g_current_time_sec ();
-  queue_was_empty = log_queue_get_length(self->queue) == 0;
-  g_mutex_unlock(self->queue_mutex);
-  
-  log_queue_push_tail(self->queue, msg, path_options);
 
   g_mutex_lock(self->suspend_mutex);
-  if (queue_was_empty && !self->writer_thread_suspended)
-    {
-      g_mutex_lock(self->queue_mutex);
-      log_queue_set_parallel_push(self->queue, 1, afmongodb_dd_queue_notify, self, NULL);
-      g_mutex_unlock(self->queue_mutex);
-    }
+  g_mutex_lock(self->queue_mutex);
+  if (!self->writer_thread_suspended)
+    log_queue_set_parallel_push(self->queue, 1, afmongodb_dd_queue_notify,
+                                self, NULL);
+  g_mutex_unlock(self->queue_mutex);
   g_mutex_unlock(self->suspend_mutex);
+  log_queue_push_tail(self->queue, msg, path_options);
 }
 
 /*

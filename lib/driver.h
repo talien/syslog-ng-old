@@ -252,4 +252,40 @@ void log_threaded_dest_driver_free(LogPipe *s);
 gboolean log_threaded_dest_driver_worker_job(LogThreadedDestDriver *self);
 gpointer log_threaded_dest_driver_worker_thread(gpointer arg);
 
+/* Threaded, transaction-supporting driver class */
+
+typedef struct _LogThreadedTxnDestDriver LogThreadedTxnDestDriver;
+
+struct _LogThreadedTxnDestDriver
+{
+  LogThreadedDestDriver super;
+
+  gint flush_lines;
+  gint flush_timeout;
+  gint flush_lines_queued;
+
+  LogMessage *pending_msg;
+  gboolean pending_msg_ack_needed;
+
+  /* Callbacks */
+  gboolean (*txn_commit_method)(LogThreadedTxnDestDriver *s);
+  gboolean (*txn_begin_method)(LogThreadedTxnDestDriver *s);
+};
+
+gboolean log_threaded_txn_dest_driver_init_method(LogPipe *s,
+                                                  gchar *persist_name,
+                                                  gint stats_source,
+                                                  const gchar *stats_instance);
+gboolean log_threaded_txn_dest_driver_deinit_method(LogPipe *s,
+                                                    gint stats_source,
+                                                    const gchar *stats_instance);
+void log_threaded_txn_dest_driver_queue_method(LogPipe *s, LogMessage *msg,
+                                               const LogPathOptions *path_options,
+                                               gpointer user_data);
+
+void log_threaded_txn_dest_driver_init_instance(LogThreadedTxnDestDriver *self);
+void log_threaded_txn_dest_driver_free(LogPipe *s);
+
+gpointer log_threaded_txn_dest_driver_worker_thread(gpointer arg);
+
 #endif

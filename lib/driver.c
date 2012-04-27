@@ -454,6 +454,15 @@ log_threaded_dest_driver_queue_pop_head(LogThreadedDestDriver *self,
 {
   gboolean success;
 
+ /* FIXME: this is a workaround because of the non-proper locking semantics
+  * of the LogQueue.  It might happen that the _queue() method sees 0
+  * elements in the queue, while the thread is still busy processing the
+  * previous message.  In that case arming the parallel push callback is
+  * not needed and will cause assertions to fail.  This is ugly and should
+  * be fixed by properly defining the "blocking" semantics of the LogQueue
+  * object w/o having to rely on user-code messing with parallel push
+  * callbacks. */
+
   g_mutex_lock(self->queue_mutex);
   log_queue_reset_parallel_push(self->queue);
   success = log_queue_pop_head(self->queue, msg, path_options, FALSE, FALSE);
@@ -552,4 +561,218 @@ log_threaded_dest_driver_worker_thread(gpointer arg)
             NULL);
 
   return NULL;
+}
+
+/* Threaded, transaction-supporting destination driver */
+gboolean
+log_threaded_txn_dest_driver_init_method(LogPipe *s,
+                                         gchar *persist_name,
+                                         gint stats_source,
+                                         const gchar *stats_instance)
+{
+  return log_threaded_dest_driver_init_method(s, persist_name, stats_source,
+                                              stats_instance);
+}
+
+gboolean
+log_threaded_txn_dest_driver_deinit_method(LogPipe *s,
+                                           gint stats_source,
+                                           const gchar *stats_instance)
+{
+  return log_threaded_dest_driver_deinit_method(s, stats_source, stats_instance);
+}
+
+void
+log_threaded_txn_dest_driver_queue_method(LogPipe *s, LogMessage *msg,
+                                          const LogPathOptions *path_options,
+                                          gpointer user_data)
+{
+  log_threaded_dest_driver_queue_method(s, msg, path_options, user_data);
+}
+
+static gboolean
+log_threaded_txn_dest_driver_txn_commit(LogThreadedTxnDestDriver *self,
+                                        gboolean lock)
+{
+  gboolean success;
+
+  success = self->txn_commit_method(self);
+  if (lock)
+    g_mutex_lock(self->super.queue_mutex);
+
+  /* FIXME: this is a workaround because of the non-proper locking semantics
+   * of the LogQueue.  It might happen that the _queue() method sees 0
+   * elements in the queue, while the thread is still busy processing the
+   * previous message.  In that case arming the parallel push callback is
+   * not needed and will cause assertions to fail.  This is ugly and should
+   * be fixed by properly defining the "blocking" semantics of the LogQueue
+   * object w/o having to rely on user-code messing with parallel push
+   * callbacks. */
+
+  log_queue_reset_parallel_push(self->super.queue);
+  if (success)
+    {
+      log_queue_ack_backlog(self->super.queue, self->flush_lines_queued);
+    }
+  else
+    {
+      msg_notice("Transaction commit failed, rewinding backlog and starting again",
+                 evt_tag_str("driver", self->super.super.super.id),
+                 NULL);
+      log_queue_rewind_backlog(self->super.queue);
+    }
+  if (lock)
+    g_mutex_unlock(self->super.queue_mutex);
+  self->flush_lines_queued = 0;
+  return success;
+}
+
+static gboolean
+log_threaded_txn_dest_driver_worker_job(LogThreadedTxnDestDriver *self)
+{
+  LogMessage *msg;
+  LogPathOptions path_options = LOG_PATH_OPTIONS_INIT;
+  gboolean success;
+
+  if (self->pending_msg)
+    {
+      g_mutex_lock(self->super.queue_mutex);
+      msg = self->pending_msg;
+      path_options.ack_needed = self->pending_msg_ack_needed;
+      self->pending_msg = NULL;
+      g_mutex_unlock(self->super.queue_mutex);
+    }
+  else
+    {
+      if (!log_threaded_dest_driver_queue_pop_head(&self->super, &msg,
+                                                   &path_options))
+        return TRUE;
+    }
+
+  msg_set_context(msg);
+  success = self->super.worker_job_method(&self->super, msg, &path_options);
+  msg_set_context(NULL);
+
+  if (!success)
+    return FALSE;
+
+  /* we only ACK if each INSERT is a separate transaction */
+  /*
+  if ((self->flags & AFSQL_DDF_EXPLICIT_COMMITS) == 0)
+    log_msg_ack(msg, &path_options);
+  */
+  log_msg_unref(msg);
+  step_sequence_number(&self->super.seq_num);
+
+  //self->failed_message_counter = 0;
+
+  return TRUE;
+}
+
+gpointer
+log_threaded_txn_dest_driver_worker_thread(gpointer arg)
+{
+  LogThreadedTxnDestDriver *self = (LogThreadedTxnDestDriver *)arg;
+
+  msg_debug("Worker thread started",
+            evt_tag_str("driver", self->super.super.super.id),
+            NULL);
+
+  if (self->super.worker_thread_init_method)
+    self->super.worker_thread_init_method(&self->super);
+
+  while (!self->super.worker_thread_terminate)
+    {
+      g_mutex_lock(self->super.suspend_mutex);
+      if (self->super.worker_thread_suspended)
+        {
+          /* we got suspended, probably because of a connection error,
+           * during this time we only get wakeups if we need to be
+           * terminated. */
+          if (!self->super.worker_thread_terminate)
+            g_cond_timed_wait(self->super.worker_thread_wakeup_cond,
+                              self->super.suspend_mutex,
+                              &self->super.worker_thread_suspend_target);
+          self->super.worker_thread_suspended = FALSE;
+          g_mutex_unlock(self->super.suspend_mutex);
+        }
+      else
+        {
+          g_mutex_unlock (self->super.suspend_mutex);
+
+          g_mutex_lock(self->super.queue_mutex);
+          if (!self->pending_msg && log_queue_get_length(self->super.queue) == 0)
+            {
+              /* we have nothing to INSERT into the database, let's
+                 wait we get some new stuff */
+
+              if (self->flush_lines_queued > 0 && self->flush_timeout > 0)
+                {
+                  GTimeVal flush_target;
+
+                  g_get_current_time(&flush_target);
+                  g_time_val_add(&flush_target, self->flush_timeout * 1000);
+                  if (!self->super.worker_thread_terminate &&
+                      !g_cond_timed_wait(self->super.worker_thread_wakeup_cond,
+                                         self->super.queue_mutex, &flush_target))
+                    {
+                      /* timeout elapsed */
+                      if (!log_threaded_txn_dest_driver_txn_commit(self, FALSE))
+                        {
+                          if (self->super.worker_job_error)
+                            self->super.worker_job_error(&self->super);
+                          log_threaded_dest_driver_worker_suspend(&self->super);
+                          g_mutex_unlock(self->super.queue_mutex);
+                          continue;
+                        }
+                    }
+                }
+              else if (!self->super.worker_thread_terminate)
+                {
+                  g_cond_wait(self->super.worker_thread_wakeup_cond,
+                              self->super.queue_mutex);
+                }
+            }
+          g_mutex_unlock(self->super.queue_mutex);
+        }
+
+      if (self->super.worker_thread_terminate)
+        break;
+
+      if (!log_threaded_txn_dest_driver_worker_job(self))
+        {
+          if (self->super.worker_job_error)
+            self->super.worker_job_error(&self->super);
+          log_threaded_dest_driver_worker_suspend(&self->super);
+        }
+    }
+
+  if (self->flush_lines_queued > 0)
+    {
+      /* we can't do anything with the return value here. if commit isn't
+       * successful, we get our backlog back, but we have no chance
+       * submitting that back to the SQL engine.
+       */
+
+      log_threaded_txn_dest_driver_txn_commit(self, TRUE);
+    }
+
+  if (self->super.worker_thread_deinit_method)
+    self->super.worker_thread_deinit_method(self);
+
+  msg_debug("Worker thread finished",
+            evt_tag_str("driver", self->super.super.super.id),
+            NULL);
+
+  return NULL;
+}
+
+void
+log_threaded_txn_dest_driver_init_instance(LogThreadedTxnDestDriver *self)
+{
+}
+
+void
+log_threaded_txn_dest_driver_free(LogPipe *s)
+{
 }

@@ -74,7 +74,7 @@ typedef struct _AFSqlField
  **/
 typedef struct _AFSqlDestDriver
 {
-  LogDestDriver super;
+  LogThreadedDestDriver super;
   /* read by the db thread */
   gchar *type;
   gchar *host;
@@ -91,36 +91,20 @@ typedef struct _AFSqlDestDriver
   AFSqlField *fields;
   gchar *null_value;
   gint time_reopen;
-  gint num_retries;
-  gint flush_lines;
-  gint flush_timeout;
-  gint flush_lines_queued;
   gint flags;
   GList *session_statements;
 
   LogTemplateOptions template_options;
 
-  StatsCounterItem *dropped_messages;
-  StatsCounterItem *stored_messages;
-
   GHashTable *dbd_options;
   GHashTable *dbd_options_numeric;
 
-  /* shared by the main/db thread */
-  GThread *db_thread;
-  GMutex *db_thread_mutex;
-  GCond *db_thread_wakeup_cond;
-  gboolean db_thread_terminate;
-  gboolean db_thread_suspended;
-  GTimeVal db_thread_suspend_target;
-  LogQueue *queue;
   /* used exclusively by the db thread */
-  gint32 seq_num;
-  LogMessage *pending_msg;
-  gboolean pending_msg_ack_needed;
+  guint32 failed_message_counter;
+  gint num_retries;
+
   dbi_conn dbi_ctx;
   GHashTable *validated_tables;
-  guint32 failed_message_counter;
 } AFSqlDestDriver;
 
 static gboolean dbi_initialized = FALSE;
@@ -592,51 +576,6 @@ afsql_dd_begin_txn(AFSqlDestDriver *self)
 static gboolean
 afsql_dd_commit_txn(AFSqlDestDriver *self, gboolean lock)
 {
-  gboolean success;
-
-  success = afsql_dd_run_query(self, "COMMIT", FALSE, NULL);
-  if (lock)
-    g_mutex_lock(self->db_thread_mutex);
-
-  /* FIXME: this is a workaround because of the non-proper locking semantics
-   * of the LogQueue.  It might happen that the _queue() method sees 0
-   * elements in the queue, while the thread is still busy processing the
-   * previous message.  In that case arming the parallel push callback is
-   * not needed and will cause assertions to fail.  This is ugly and should
-   * be fixed by properly defining the "blocking" semantics of the LogQueue
-   * object w/o having to rely on user-code messing with parallel push
-   * callbacks. */
-
-  log_queue_reset_parallel_push(self->queue);
-  if (success)
-    {
-      log_queue_ack_backlog(self->queue, self->flush_lines_queued);
-    }
-  else
-    {
-      msg_notice("SQL transaction commit failed, rewinding backlog and starting again",
-                 NULL);
-      log_queue_rewind_backlog(self->queue);
-    }
-  if (lock)
-    g_mutex_unlock(self->db_thread_mutex);
-  self->flush_lines_queued = 0;
-  return success;
-}
-
-/**
- * afsql_dd_suspend:
- * timeout: in milliseconds
- *
- * This function is assumed to be called from the database thread
- * only!
- **/
-static void
-afsql_dd_suspend(AFSqlDestDriver *self)
-{
-  self->db_thread_suspended = TRUE;
-  g_get_current_time(&self->db_thread_suspend_target);
-  g_time_val_add(&self->db_thread_suspend_target, self->time_reopen * 1000 * 1000); /* the timeout expects microseconds */
 }
 
 static void
@@ -859,14 +798,6 @@ afsql_dd_insert_db(AFSqlDestDriver *self)
     {
       g_mutex_lock(self->db_thread_mutex);
 
-      /* FIXME: this is a workaround because of the non-proper locking semantics
-       * of the LogQueue.  It might happen that the _queue() method sees 0
-       * elements in the queue, while the thread is still busy processing the
-       * previous message.  In that case arming the parallel push callback is
-       * not needed and will cause assertions to fail.  This is ugly and should
-       * be fixed by properly defining the "blocking" semantics of the LogQueue
-       * object w/o having to rely on user-code messing with parallel push
-       * callbacks. */
       log_queue_reset_parallel_push(self->queue);
       success = log_queue_pop_head(self->queue, &msg, &path_options, (self->flags & AFSQL_DDF_EXPLICIT_COMMITS), FALSE);
       g_mutex_unlock(self->db_thread_mutex);
@@ -910,122 +841,7 @@ afsql_dd_insert_db(AFSqlDestDriver *self)
   if (!success)
     return afsql_dd_insert_fail_handler(self, msg, &path_options);
 
-  /* we only ACK if each INSERT is a separate transaction */
-  if ((self->flags & AFSQL_DDF_EXPLICIT_COMMITS) == 0)
-    log_msg_ack(msg, &path_options);
-  log_msg_unref(msg);
-  step_sequence_number(&self->seq_num);
-  self->failed_message_counter = 0;
-
   return TRUE;
-}
-
-/**
- * afsql_dd_database_thread:
- *
- * This is the thread inserting records into the database.
- **/
-static gpointer
-afsql_dd_database_thread(gpointer arg)
-{
-  AFSqlDestDriver *self = (AFSqlDestDriver *) arg;
-
-  msg_verbose("Database thread started",
-              evt_tag_str("driver", self->super.super.id),
-              NULL);
-  while (!self->db_thread_terminate)
-    {
-      g_mutex_lock(self->db_thread_mutex);
-      if (self->db_thread_suspended)
-        {
-          /* we got suspended, probably because of a connection error,
-           * during this time we only get wakeups if we need to be
-           * terminated. */
-          if (!self->db_thread_terminate)
-            g_cond_timed_wait(self->db_thread_wakeup_cond, self->db_thread_mutex, &self->db_thread_suspend_target);
-          self->db_thread_suspended = FALSE;
-          g_mutex_unlock(self->db_thread_mutex);
-
-          /* we loop back to check if the thread was requested to terminate */
-        }
-      else if (!self->pending_msg && log_queue_get_length(self->queue) == 0)
-        {
-          /* we have nothing to INSERT into the database, let's wait we get some new stuff */
-
-          if (self->flush_lines_queued > 0 && self->flush_timeout > 0)
-            {
-              GTimeVal flush_target;
-
-              g_get_current_time(&flush_target);
-              g_time_val_add(&flush_target, self->flush_timeout * 1000);
-              if (!self->db_thread_terminate && !g_cond_timed_wait(self->db_thread_wakeup_cond, self->db_thread_mutex, &flush_target))
-                {
-                  /* timeout elapsed */
-                  if (!afsql_dd_commit_txn(self, FALSE))
-                    {
-                      afsql_dd_disconnect(self);
-                      afsql_dd_suspend(self);
-                      g_mutex_unlock(self->db_thread_mutex);
-                      continue;
-                    }
-                }
-            }
-          else if (!self->db_thread_terminate)
-            {
-              g_cond_wait(self->db_thread_wakeup_cond, self->db_thread_mutex);
-            }
-          g_mutex_unlock(self->db_thread_mutex);
-
-          /* we loop back to check if the thread was requested to terminate */
-        }
-      else
-        g_mutex_unlock(self->db_thread_mutex);
-
-      if (self->db_thread_terminate)
-        break;
-
-      if (!afsql_dd_insert_db(self))
-        {
-          afsql_dd_disconnect(self);
-          afsql_dd_suspend(self);
-        }
-    }
-  if (self->flush_lines_queued > 0)
-    {
-      /* we can't do anything with the return value here. if commit isn't
-       * successful, we get our backlog back, but we have no chance
-       * submitting that back to the SQL engine.
-       */
-
-      afsql_dd_commit_txn(self, TRUE);
-    }
-
-  afsql_dd_disconnect(self);
-
-  msg_verbose("Database thread finished",
-              evt_tag_str("driver", self->super.super.id),
-              NULL);
-  return NULL;
-}
-
-static void
-afsql_dd_start_thread(AFSqlDestDriver *self)
-{
-  self->db_thread_wakeup_cond = g_cond_new();
-  self->db_thread_mutex = g_mutex_new();
-  self->db_thread = create_worker_thread(afsql_dd_database_thread, self, TRUE, NULL);
-}
-
-static void
-afsql_dd_stop_thread(AFSqlDestDriver *self)
-{
-  g_mutex_lock(self->db_thread_mutex);
-  self->db_thread_terminate = TRUE;
-  g_cond_signal(self->db_thread_wakeup_cond);
-  g_mutex_unlock(self->db_thread_mutex);
-  g_thread_join(self->db_thread);
-  g_mutex_free(self->db_thread_mutex);
-  g_cond_free(self->db_thread_wakeup_cond);
 }
 
 static gchar *
@@ -1210,38 +1026,6 @@ afsql_dd_deinit(LogPipe *s)
     return FALSE;
 
   return TRUE;
-}
-
-static void
-afsql_dd_queue_notify(gpointer user_data)
-{
-  AFSqlDestDriver *self = (AFSqlDestDriver *) user_data;
-  g_mutex_lock(self->db_thread_mutex);
-  g_cond_signal(self->db_thread_wakeup_cond);
-  log_queue_reset_parallel_push(self->queue);
-  g_mutex_unlock(self->db_thread_mutex);
-}
-
-static void
-afsql_dd_queue(LogPipe *s, LogMessage *msg, const LogPathOptions *path_options, gpointer user_data)
-{
-  AFSqlDestDriver *self = (AFSqlDestDriver *) s;
-  gboolean queue_was_empty;
-  LogPathOptions local_options;
-
-  if (!path_options->flow_control_requested)
-    path_options = log_msg_break_ack(msg, path_options, &local_options);
-
-  g_mutex_lock(self->db_thread_mutex);
-  queue_was_empty = log_queue_get_length(self->queue) == 0;
-  if (queue_was_empty && !self->db_thread_suspended)
-    {
-      log_queue_set_parallel_push(self->queue, 1, afsql_dd_queue_notify, self, NULL);
-    }
-  g_mutex_unlock(self->db_thread_mutex);
-  log_msg_add_ack(msg, path_options);
-  log_queue_push_tail(self->queue, log_msg_ref(msg), path_options);
-  log_dest_driver_queue_method(s, msg, path_options, user_data);
 }
 
 static void

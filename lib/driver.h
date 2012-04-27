@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2010 BalaBit IT Ltd, Budapest, Hungary
- * Copyright (c) 1998-2010 Balázs Scheidler
+ * Copyright (c) 2002-2012 BalaBit IT Ltd, Budapest, Hungary
+ * Copyright (c) 1998-2012 Balázs Scheidler
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -200,5 +200,56 @@ void log_dest_driver_queue_method(LogPipe *s, LogMessage *msg, const LogPathOpti
 void log_dest_driver_init_instance(LogDestDriver *self);
 void log_dest_driver_free(LogPipe *s);
 
+/* threaded destination driver class: LogThreadedDestDriver */
+
+typedef struct _LogThreadedDestDriver LogThreadedDestDriver;
+
+struct _LogThreadedDestDriver
+{
+  LogDestDriver super;
+
+  StatsCounterItem *stored_messages;
+  StatsCounterItem *dropped_messages;
+  time_t time_reopen;
+  gint32 seq_num;
+
+  /* Thread stuff; shared */
+  GThread *worker_thread;
+  GMutex *queue_mutex;
+  GMutex *suspend_mutex;
+  GCond *worker_thread_wakeup_cond;
+
+  gboolean worker_thread_terminate;
+  gboolean worker_thread_suspended;
+  GTimeVal worker_thread_suspend_target;
+
+  LogQueue *queue;
+
+  /* Callbacks */
+  gboolean (*worker_job_method)(LogThreadedDestDriver *s, LogMessage *msg, LogPathOptions *path_options);
+  void (*worker_job_error)(LogThreadedDestDriver *s);
+
+  gboolean (*worker_thread_init_method)(gpointer s);
+  gboolean (*worker_thread_deinit_method)(gpointer s);
+  gpointer (*worker_thread_method)(gpointer s);
+  gboolean (*worker_thread_job_method)(LogThreadedDestDriver *self);
+};
+
+gboolean log_threaded_dest_driver_init_method(LogPipe *s,
+                                              gchar *persist_name,
+                                              gint stats_source,
+                                              const gchar *stats_instance);
+gboolean log_threaded_dest_driver_deinit_method(LogPipe *s,
+                                                gint stats_source,
+                                                const gchar *stats_instance);
+void log_threaded_dest_driver_queue_method(LogPipe *s, LogMessage *msg,
+                                           const LogPathOptions *path_options,
+                                           gpointer user_data);
+
+void log_threaded_dest_driver_init_instance(LogThreadedDestDriver *self);
+void log_threaded_dest_driver_free(LogPipe *s);
+
+gboolean log_threaded_dest_driver_worker_job(LogThreadedDestDriver *self);
+gpointer log_threaded_dest_driver_worker_thread(gpointer arg);
 
 #endif

@@ -1,0 +1,79 @@
+/*
+ * Copyright (c) 2012 Gergely Nagy <algernon@balabit.hu>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ *
+ * As an additional exemption you are allowed to compile & link against the
+ * OpenSSL libraries as published by the OpenSSL project. See the file
+ * COPYING for details.
+ *
+ */
+
+%code requires {
+
+#include "redisdd-parser.h"
+
+}
+
+%code {
+
+#include "cfg-parser.h"
+#include "redisdd-grammar.h"
+#include "plugin.h"
+
+extern LogDriver *last_driver;
+extern ValuePairs *last_value_pairs;
+
+}
+
+%name-prefix "redis_dd_"
+%lex-param {CfgLexer *lexer}
+%parse-param {CfgLexer *lexer}
+%parse-param {LogDriver **instance}
+%parse-param {gpointer arg}
+
+
+/* INCLUDE_DECLS */
+
+%token KW_REDIS
+%token KW_PREFIX
+%token KW_COMMAND
+
+%%
+
+start
+        : LL_CONTEXT_DESTINATION KW_REDIS
+          {
+            last_driver = *instance = redis_dd_new();
+          }
+          '(' redis_dd_options ')'         { YYACCEPT; }
+	;
+
+redis_dd_options
+        : redis_dd_option redis_dd_options
+	|
+	;
+
+redis_dd_option
+        : KW_HOST '(' string ')'		{ redis_dd_set_host(last_driver, $3); free($3); }
+        | KW_PORT '(' LL_NUMBER ')'		{ redis_dd_set_port(last_driver, $3); }
+        | KW_COMMAND '(' string ')'             { redis_dd_set_command(last_driver, $3); free($3); }
+        | KW_PREFIX '(' string ')'              { redis_dd_set_prefix(last_driver, $3); free($3); }
+	| value_pair_option			{ redis_dd_set_value_pairs(last_driver, $1); }
+	| dest_driver_option
+        ;
+
+/* INCLUDE_RULES */
+
+%%

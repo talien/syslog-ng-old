@@ -32,6 +32,7 @@
 #include "logproto-record-server.h"
 #include "logproto-text-server.h"
 #include "logproto-linux-proc-kmsg-reader.h"
+#include "logproto-indented-multiline-server.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -135,6 +136,8 @@ affile_sd_construct_proto(AFFileSourceDriver *self, gint fd)
     return log_proto_padded_record_server_new(transport, proto_options, self->pad_size);
   else if (affile_is_linux_proc_kmsg(self->filename->str))
     return log_proto_linux_proc_kmsg_reader_new(transport, proto_options);
+  else if (self->reader_options.flags & LR_INDENTED_ML)
+    return log_proto_indented_multiline_server_new(transport, proto_options);
   else
     return log_proto_text_server_new(transport, proto_options);
 }

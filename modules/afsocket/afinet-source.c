@@ -141,7 +141,10 @@ afinet_sd_apply_transport(AFSocketSourceDriver *s)
       else
         {
           default_bind_port = "514";
-          self->super.logproto_name = "text";
+          if (self->super.reader_options.flags & LR_INDENTED_ML)
+            self->super.logproto_name = "indented-multiline";
+          else
+            self->super.logproto_name = "text";
         }
       self->super.sock_type = SOCK_STREAM;
     }

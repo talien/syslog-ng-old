@@ -894,6 +894,7 @@ CfgFlagHandler log_reader_flag_handlers[] =
   { "kernel",                     CFH_SET, offsetof(LogReaderOptions, flags),               LR_KERNEL },
   { "empty-lines",                CFH_SET, offsetof(LogReaderOptions, flags),               LR_EMPTY_LINES },
   { "threaded",                   CFH_SET, offsetof(LogReaderOptions, flags),               LR_THREADED },
+  { "indented-multiline",         CFH_SET, offsetof(LogReaderOptions, flags),               LR_INDENTED_ML },
   { NULL },
 };
 

@@ -36,6 +36,7 @@
 #define LR_SYSLOG_PROTOCOL 0x0010
 #define LR_PREEMPT         0x0020
 #define LR_THREADED        0x0040
+#define LR_INDENTED_ML     0x0080
 
 /* options */
 

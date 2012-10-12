@@ -187,16 +187,25 @@ log_proto_text_server_get_raw_size_of_buffer(LogProtoTextServer *self, const guc
     }
 }
 
+static gboolean
+log_proto_text_server_line_is_complete(LogProtoTextServer *self,
+                                       LogProtoBufferedServerState *state,
+                                       const guchar **eol)
+{
+  return !!(*eol);
+}
 
-/**
- * log_proto_text_server_fetch_from_buf:
- * @self: LogReader instance
- * @saddr: socket address to be assigned to new messages (consumed!)
- * @flush: whether to flush the input buffer
- * @msg_counter: the number of messages processed in the current poll iteration
- *
- * Returns TRUE if a message was found in the buffer, FALSE if we need to read again.
- **/
+static void
+log_proto_text_server_line_flush (LogProtoTextServer *self,
+                                  LogProtoBufferedServerState *state,
+                                  const guchar **msg, gsize *msg_len,
+                                  const guchar *buffer_start, gsize buffer_bytes)
+{
+  *msg = buffer_start;
+  *msg_len = buffer_bytes;
+  state->pending_buffer_pos = state->pending_buffer_end;
+}
+
 static gboolean
 log_proto_text_server_fetch_from_buf(LogProtoBufferedServer *s, const guchar *buffer_start, gsize buffer_bytes, const guchar **msg, gsize *msg_len, gboolean flush_the_rest)
 {
@@ -211,9 +220,7 @@ log_proto_text_server_fetch_from_buf(LogProtoBufferedServer *s, const guchar *bu
        * we are set to packet terminating mode or the connection is to
        * be teared down and we have partial data in our buffer.
        */
-      *msg = buffer_start;
-      *msg_len = buffer_bytes;
-      state->pending_buffer_pos = state->pending_buffer_end;
+      self->line_flush (self, state, msg, msg_len, buffer_start, buffer_bytes);
       goto success;
     }
 
@@ -237,7 +244,7 @@ log_proto_text_server_fetch_from_buf(LogProtoBufferedServer *s, const guchar *bu
       *msg = buffer_start;
       goto success;
     }
-  else if (!eol)
+  else if (!self->is_line_complete(self, state, &eol))
     {
       gsize raw_split_size;
 
@@ -330,6 +337,10 @@ log_proto_text_server_init(LogProtoTextServer *self, LogTransport *transport, co
   self->super.super.prepare = log_proto_text_server_prepare;
   self->super.super.free_fn = log_proto_text_server_free;
   self->super.fetch_from_buf = log_proto_text_server_fetch_from_buf;
+
+  self->is_line_complete = log_proto_text_server_line_is_complete;
+  self->line_flush = log_proto_text_server_line_flush;
+
   self->super.stream_based = TRUE;
   self->reverse_convert = (GIConv) -1;
 }

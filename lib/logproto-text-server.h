@@ -34,6 +34,14 @@ struct _LogProtoTextServer
   gchar *reverse_buffer;
   gsize reverse_buffer_len;
   gint convert_scale;
+
+  gboolean (*is_line_complete)(LogProtoTextServer *self,
+                               LogProtoBufferedServerState *state,
+                               const guchar **eol);
+  void (*line_flush)(LogProtoTextServer *self,
+                     LogProtoBufferedServerState *state,
+                     const guchar **msg, gsize *msg_len,
+                     const guchar *buffer_start, gsize buffer_bytes);
 };
 
 /* LogProtoTextServer

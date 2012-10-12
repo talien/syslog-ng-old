@@ -48,6 +48,7 @@ pkginclude_HEADERS = 		\
 	logproto-framed-server.h	\
 	logproto-text-client.h  \
 	logproto-text-server.h	\
+	logproto-indented-multiline-server.h \
 	logproto-record-server.h \
 	logproto-builtins.h	\
 	logproto.h              \
@@ -131,6 +132,7 @@ libsyslog_ng_la_SOURCES = \
 	logproto-framed-server.c	\
 	logproto-text-client.c  \
 	logproto-text-server.c	\
+	logproto-indented-multiline-server.c \
 	logproto-record-server.c \
 	logproto-builtins.c	\
 	logqueue.c		\

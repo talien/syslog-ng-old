@@ -4,6 +4,7 @@
 #include "logproto-text-server.h"
 #include "logproto-framed-server.h"
 #include "logproto-dgram-server.h"
+#include "logproto-indented-multiline-server.h"
 #include "logproto-record-server.h"
 
 #include "apphook.h"
@@ -507,6 +508,49 @@ test_log_proto_text_server(void)
 }
 
 /****************************************************************************************
+ * LogProtoIMultiLineServer
+ ****************************************************************************************/
+static void
+test_log_proto_indented_multiline_server_base(gboolean input_is_stream)
+{
+  LogProtoServer *proto;
+
+  log_proto_testcase_begin("test_log_proto_indented_multiline_server_base");
+  proto_server_options.max_msg_size = 32;
+
+  proto = log_proto_indented_multiline_server_new(
+            /* 32 bytes max line length */
+            (input_is_stream ? log_transport_mock_stream_new : log_transport_mock_records_new)(
+              "01234567\n"
+              /* line too long */
+              //"0123456789ABCDEF0123456789ABCDEF01234567\n", -1,
+              /* multi-line */
+              "0\n 1=2\n 3=4\nEND\n", -1,
+
+              LTM_EOF),
+            get_inited_proto_server_options());
+
+  assert_proto_server_fetch(proto, "01234567", -1);
+
+  /* input split due to an oversized input line */
+  //assert_proto_server_fetch(proto, "0123456789ABCDEF0123456789ABCDEF", -1);
+  //assert_proto_server_fetch(proto, "01234567", -1);
+
+  assert_proto_server_fetch(proto, "0\n 1=2\n 3=4", -1);
+  assert_proto_server_fetch(proto, "END", -1);
+
+  log_proto_server_free(proto);
+  log_proto_testcase_end();
+}
+
+static void
+test_log_proto_indented_multiline_server(void)
+{
+  test_log_proto_indented_multiline_server_base(FALSE);
+  test_log_proto_indented_multiline_server_base(TRUE);
+}
+
+/****************************************************************************************
  * LogProtoDGramServer
  ****************************************************************************************/
 
@@ -883,6 +927,7 @@ test_log_proto(void)
   test_log_proto_base();
   test_log_proto_record_server();
   test_log_proto_text_server();
+  test_log_proto_indented_multiline_server();
   test_log_proto_dgram_server();
   test_log_proto_framed_server();
 }

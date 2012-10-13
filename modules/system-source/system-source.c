@@ -27,6 +27,7 @@
 #include "messages.h"
 #include "plugin.h"
 
+#include <fcntl.h>
 #include <sys/utsname.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -50,7 +51,7 @@ system_sysblock_add_unix_dgram(GString *sysblock, const gchar *path,
 static void
 system_sysblock_add_file(GString *sysblock, const gchar *path,
                          gint follow_freq, const gchar *prg_override,
-                         const gchar *flags)
+                         const gchar *flags, const gchar *format)
 {
   g_string_append_printf(sysblock, "file(\"%s\"", path);
   if (follow_freq >= 0)
@@ -59,6 +60,8 @@ system_sysblock_add_file(GString *sysblock, const gchar *path,
     g_string_append_printf(sysblock, " program-override(\"%s\")", prg_override);
   if (flags)
     g_string_append_printf(sysblock, " flags(%s)", flags);
+  if (format)
+    g_string_append_printf(sysblock, " format(%s)", format);
   g_string_append(sysblock, ");\n");
 }
 
@@ -96,9 +99,9 @@ system_sysblock_add_freebsd_klog(GString *sysblock, const gchar *release)
   if (strncmp(release, "7.", 2) == 0 ||
       strncmp(release, "8.", 2) == 0 ||
       strncmp(release, "9.0", 3) == 0)
-    system_sysblock_add_file(sysblock, "/dev/klog", 1, "kernel", "no-parse");
+    system_sysblock_add_file(sysblock, "/dev/klog", 1, "kernel", "no-parse", NULL);
   else
-    system_sysblock_add_file(sysblock, "/dev/klog", 0, "kernel", "no-parse");
+    system_sysblock_add_file(sysblock, "/dev/klog", 0, "kernel", "no-parse", NULL);
 }
 
 gboolean
@@ -124,6 +127,9 @@ system_generate_system(CfgLexer *lexer, gint type, const gchar *name,
   if (strcmp(u.sysname, "Linux") == 0)
     {
       char *log = "/dev/log";
+      gchar *kmsg = "/proc/kmsg";
+      int fd;
+      gchar *format = NULL;
 
       if (getenv("LISTEN_FDS") != NULL)
         {
@@ -137,7 +143,18 @@ system_generate_system(CfgLexer *lexer, gint type, const gchar *name,
         }
 
       system_sysblock_add_unix_dgram(sysblock, log, NULL, "8192");
-      system_sysblock_add_file(sysblock, "/proc/kmsg", -1, "kernel", "kernel");
+
+      if ((fd = open("/dev/kmsg", O_RDONLY)) != -1)
+        {
+          if (lseek (fd, 0, SEEK_END) != -1)
+            {
+              kmsg = "/dev/kmsg";
+              format = "linux-kmsg";
+            }
+          close (fd);
+        }
+
+      system_sysblock_add_file(sysblock, kmsg, -1, "kernel", "kernel", format);
     }
   else if (strcmp(u.sysname, "SunOS") == 0)
     {

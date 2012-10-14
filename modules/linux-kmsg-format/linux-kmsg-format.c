@@ -34,6 +34,7 @@ static NVHandle KMSG_LM_V_DEV_MINOR;
 static NVHandle KMSG_LM_V_DEV_MAJOR;
 static NVHandle KMSG_LM_V_DEV_NAME;
 static NVHandle KMSG_LM_V_NETDEV_INDEX;
+static NVHandle KMSG_LM_V_TIMESTAMP;
 static struct timeval boot_time;
 
 /*
@@ -128,6 +129,7 @@ static gsize
 kmsg_parse_timestamp(const guchar *data, gsize pos, gsize length, LogMessage *msg)
 {
   guint64 timestamp = 0;
+  gsize start = pos;
 
   while (pos < length && data[pos] != ',' && data[pos] != ';')
     {
@@ -140,6 +142,8 @@ kmsg_parse_timestamp(const guchar *data, gsize pos, gsize length, LogMessage *ms
   if ((data[pos] != ',' && data[pos] != ';') || pos == length)
     return -1;
 
+  log_msg_set_value(msg, KMSG_LM_V_TIMESTAMP,
+                    (const gchar *)data + start, pos - start);
   kmsg_to_absolute_time(timestamp, &msg->timestamps[LM_TS_STAMP]);
   msg->timestamps[LM_TS_STAMP].zone_offset =
     get_local_timezone_ofs(msg->timestamps[LM_TS_STAMP].tv_sec);
@@ -460,6 +464,7 @@ linux_msg_format_init(void)
       KMSG_LM_V_DEV_MAJOR = log_msg_get_value_handle(".kernel.DEVICE.major");
       KMSG_LM_V_DEV_NAME = log_msg_get_value_handle(".kernel.DEVICE.name");
       KMSG_LM_V_NETDEV_INDEX = log_msg_get_value_handle(".kernel.DEVICE.index");
+      KMSG_LM_V_TIMESTAMP = log_msg_get_value_handle(".kernel.timestamp");
 
 #ifdef __linux__
       kmsg_init_boot_time();

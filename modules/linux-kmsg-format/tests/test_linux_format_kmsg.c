@@ -28,7 +28,7 @@ assert_log_kmsg_value(LogMessage *message, const gchar *key,
 void
 test_kmsg_single_line(void)
 {
-  gchar msg[] = "5,2,0;Linux version 3.5-trunk-amd64 (Debian 3.5.2-1~experimental.1) (debian-kernel@lists.debian.org) (gcc version 4.6.3 (Debian 4.6.3-1) ) #1 SMP Mon Aug 20 04:17:46 UTC 2012\n";
+  gchar msg[] = "5,2,1;Linux version 3.5-trunk-amd64 (Debian 3.5.2-1~experimental.1) (debian-kernel@lists.debian.org) (gcc version 4.6.3 (Debian 4.6.3-1) ) #1 SMP Mon Aug 20 04:17:46 UTC 2012\n";
   LogMessage *parsed_message;
 
   testcase_begin("Testing single-line /dev/kmsg parsing; msg='%s'", msg);
@@ -39,6 +39,7 @@ test_kmsg_single_line(void)
   assert_log_message_value(parsed_message, LM_V_MSGID, "2");
   msg[sizeof(msg) - 2] = '\0';
   assert_log_message_value(parsed_message, LM_V_MESSAGE, msg + 6);
+  assert_log_kmsg_value(parsed_message, ".kernel.timestamp", "1");
 
   log_msg_unref(parsed_message);
 

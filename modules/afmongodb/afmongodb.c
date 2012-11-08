@@ -22,6 +22,7 @@
  */
 
 #include <time.h>
+#include <stdlib.h>
 
 #include "afmongodb.h"
 #include "afmongodb-parser.h"
@@ -31,6 +32,8 @@
 #include "stats.h"
 #include "nvtable.h"
 #include "logqueue.h"
+#include "value-pairs.h"
+#include "scratch-buffers.h"
 
 #include "mongo.h"
 
@@ -51,6 +54,8 @@ typedef struct
 
   gchar *host;
   gint port;
+
+  gchar *datetime_field;
 
   gchar *user;
   gchar *password;
@@ -153,6 +158,15 @@ afmongodb_dd_set_value_pairs(LogDriver *d, ValuePairs *vp)
   self->vp = vp;
 }
 
+void
+afmongodb_dd_set_datetime(LogDriver *d, const gchar *field)
+{
+  MongoDBDestDriver *self = (MongoDBDestDriver *)d;
+
+  g_free(self->datetime_field);
+  self->datetime_field = g_strdup(field);
+}
+
 /*
  * Utilities
  */
@@ -234,7 +248,7 @@ static gboolean
 afmongodb_vp_foreach (const gchar *name, const gchar *value,
 		      gpointer user_data)
 {
-  bson *bson_set = (bson *)user_data;
+  bson *bson_set = (bson *)(((gpointer *)user_data)[0]);
 
   if (name[0] == '.')
     {
@@ -246,7 +260,20 @@ afmongodb_vp_foreach (const gchar *name, const gchar *value,
       bson_append_string (bson_set, tx_name, value, -1);
     }
   else
-    bson_append_string (bson_set, name, value, -1);
+    {
+      MongoDBDestDriver *self = (MongoDBDestDriver *)(((gpointer *)user_data)[1]);
+
+      if (strcmp(self->datetime_field, name) == 0)
+        {
+          gchar *endptr;
+          gint64 datetime = (gint64)strtoul(value, &endptr, 10) * 1000;
+
+          if (endptr[0] == '\0')
+            bson_append_utc_datetime(bson_set, name, datetime);
+        }
+      else
+        bson_append_string (bson_set, name, value, -1);
+    }
 
   return FALSE;
 }
@@ -259,6 +286,7 @@ afmongodb_worker_insert (MongoDBDestDriver *self)
   guint8 *oid;
   LogMessage *msg;
   LogPathOptions path_options = LOG_PATH_OPTIONS_INIT;
+  gpointer user_data[] = { NULL, self };
 
   afmongodb_dd_connect(self, TRUE);
 
@@ -280,8 +308,9 @@ afmongodb_worker_insert (MongoDBDestDriver *self)
   g_free (oid);
   bson_finish (self->bson_sel);
 
+  user_data[0] = self->bson_set;
   value_pairs_foreach (self->vp, afmongodb_vp_foreach,
-		       msg, self->seq_num, self->bson_set);
+		       msg, self->seq_num, user_data);
 
   bson_finish (self->bson_set);
 
@@ -499,6 +528,7 @@ afmongodb_dd_free(LogPipe *d)
   g_free(self->host);
   if (self->vp)
     value_pairs_free(self->vp);
+  g_free(self->datetime_field);
   log_dest_driver_free(d);
 }
 

@@ -49,6 +49,7 @@ extern ValuePairs *last_value_pairs;
 
 %token KW_MONGODB
 %token KW_COLLECTION
+%token KW_DATETIME
 
 %%
 
@@ -72,6 +73,7 @@ afmongodb_option
 	| KW_COLLECTION '(' string ')'		{ afmongodb_dd_set_collection(last_driver, $3); free($3); }
 	| KW_USERNAME '(' string ')'		{ afmongodb_dd_set_user(last_driver, $3); free($3); }
 	| KW_PASSWORD '(' string ')'		{ afmongodb_dd_set_password(last_driver, $3); free($3); }
+        | KW_DATETIME '(' string ')'            { afmongodb_dd_set_datetime(last_driver, $3); free($3); }
 	| value_pair_option			{ afmongodb_dd_set_value_pairs(last_driver, $1); }
 	| dest_driver_option
         ;

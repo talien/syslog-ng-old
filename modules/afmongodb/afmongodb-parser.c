@@ -37,6 +37,7 @@ static CfgLexerKeyword afmongodb_keywords[] = {
   { "username",			KW_USERNAME },
   { "password",			KW_PASSWORD },
   { "log_fifo_size",		KW_LOG_FIFO_SIZE  },
+  { "datetime",                 KW_DATETIME },
   { NULL }
 };
 

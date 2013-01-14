@@ -67,6 +67,10 @@ static CfgLexerKeyword main_keywords[] = {
   { "add_prefix",         KW_ADD_PREFIX, 0x0303 },
   { "replace",            KW_REPLACE, 0x0303 },
 
+  /* type hints */
+  { "typecast",           KW_TYPE_CAST, 0x0304 },
+  { "on_error",           KW_ON_ERROR, 0x0304 },
+
   /* option items */
   { "flags",              KW_FLAGS },
   { "pad_size",           KW_PAD_SIZE },

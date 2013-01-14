@@ -83,6 +83,7 @@ pkginclude_HEADERS = 		\
 	tls-support.h		\
 	tlscontext.h  		\
 	tlstransport.h		\
+	type-hinting.h		\
 	utils.h			\
 	uuid.h			\
 	value-pairs.h		\
@@ -161,6 +162,7 @@ libsyslog_ng_la_SOURCES = \
 	tags.c			\
 	templates.c		\
 	timeutils.c		\
+	type-hinting.c		\
 	utils.c			\
 	value-pairs.c		\
 	vptransform.c		\

@@ -26,6 +26,7 @@ check_PROGRAMS =			\
 	test_serialize			\
 	test_zone			\
 	test_persist_state		\
+	test_type_hints			\
 	test_value_pairs
 
 test_msgparse_SOURCES = test_msgparse.c

@@ -910,6 +910,7 @@ gboolean
 cfg_tree_compile_rule(CfgTree *self, LogExprNode *rule)
 {
   LogPipe *sub_pipe_head = NULL, *sub_pipe_tail = NULL;
+  msg_debug("Compiling rule", NULL);
 
   return cfg_tree_compile_node(self, rule, &sub_pipe_head, &sub_pipe_tail);
 }
@@ -945,6 +946,7 @@ cfg_tree_add_object(CfgTree *self, LogExprNode *rule)
   if (rule->name)
     {
       /* only named rules can be stored as objects to be referenced later */
+      msg_debug("Adding item to named objects", evt_tag_str("name", rule->name),NULL);
 
       /* check if already present */
       res = (g_hash_table_lookup(self->objects, rule) == NULL);
@@ -955,6 +957,7 @@ cfg_tree_add_object(CfgTree *self, LogExprNode *rule)
   else
     {
       /* unnamed rules are simply put in the rules array */
+      msg_debug("Adding item to rules", NULL);
       g_ptr_array_add(self->rules, rule);
     }
 
@@ -995,6 +998,7 @@ LogTemplate *
 cfg_tree_check_inline_template(CfgTree *self, const gchar *template_or_name, GError **error)
 {
   LogTemplate *template = cfg_tree_lookup_template(self, template_or_name);
+  
 
   if (template == NULL)
     {
@@ -1040,6 +1044,8 @@ gboolean
 cfg_tree_start(CfgTree *self)
 {
   gint i;
+  
+  msg_debug("Compiling tree", NULL);
 
   if (!cfg_tree_compile(self))
     return FALSE;

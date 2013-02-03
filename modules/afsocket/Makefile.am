@@ -35,6 +35,8 @@ libafsocket_notls_la_SOURCES = \
 	afsocket-parser.c	\
 	afsocket-parser.h	\
 	afsocket-plugin.c 	\
+	afsocket-lua.c		\
+	afsocket-lua.h		\
 	$(SYSTEMD_SOURCES)
 libafsocket_notls_la_CPPFLAGS = $(AM_CPPFLAGS) $(libsystemd_daemon_CFLAGS)
 libafsocket_notls_la_LIBADD = $(MODULE_DEPS_LIBS) $(LIBNET_LIBS) $(LIBWRAP_LIBS) $(libsystemd_daemon_LIBS)

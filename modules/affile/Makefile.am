@@ -11,7 +11,7 @@ libaffile_la_SOURCES =					\
 	affile-dest.c affile-dest.h			\
 	affile-grammar.y				\
 	affile-parser.c affile-parser.h			\
-	affile-plugin.c
+	affile-plugin.c affile-lua.c
 
 BUILT_SOURCES = affile-grammar.y affile-grammar.c affile-grammar.h
 EXTRA_DIST = $(BUILT_SOURCES) affile-grammar.ym

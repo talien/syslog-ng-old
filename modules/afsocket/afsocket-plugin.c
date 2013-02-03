@@ -25,6 +25,7 @@
 #include "cfg-parser.h"
 #include "plugin.h"
 #include "tlscontext.h"
+#include "afsocket-lua.h"
 
 static Plugin afsocket_plugins[] =
 {
@@ -130,4 +131,5 @@ const ModuleInfo module_info =
   .core_revision = SOURCE_REVISION,
   .plugins = afsocket_plugins,
   .plugins_len = G_N_ELEMENTS(afsocket_plugins),
+  .lua_reg_func = afsocket_register_lua_config,
 };

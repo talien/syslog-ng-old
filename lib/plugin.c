@@ -246,7 +246,7 @@ plugin_get_module_init_name(const gchar *module_name)
   return module_init_func;
 }
 
-static GModule *
+GModule *
 plugin_dlopen_module(const gchar *module_name, const gchar *module_path)
 {
   gchar *plugin_module_name = NULL;
@@ -391,12 +391,69 @@ plugin_load_module(const gchar *module_name, GlobalConfig *cfg, CfgArgs *args)
   return result;
 }
 
+typedef void (*module_candidate_load_func)(GlobalConfig* cfg, ModuleInfo* module_info, gchar* module_name, GModule* mod);
+
 void
-plugin_load_candidate_modules(GlobalConfig *cfg)
+plugin_load_candidate_plugins_from_module(GlobalConfig* cfg, ModuleInfo* module_info, gchar* module_name, GModule* mod)
+{
+   int j;
+   for (j = 0; j < module_info->plugins_len; j++)
+    {
+      Plugin *plugin = &module_info->plugins[j];
+      PluginCandidate *candidate_plugin;
+
+      candidate_plugin = (PluginCandidate *) plugin_find_in_list(cfg, cfg->candidate_plugins, plugin->type, plugin->name);
+
+      msg_debug("Registering candidate plugin",
+		evt_tag_str("module", module_name),
+		evt_tag_str("context", cfg_lexer_lookup_context_name_by_type(plugin->type)),
+		evt_tag_str("name", plugin->name),
+		evt_tag_int("preference", module_info->preference),
+		NULL);
+      if (candidate_plugin)
+	{
+	  if (candidate_plugin->preference < module_info->preference)
+	    {
+	      plugin_candidate_set_module_name(candidate_plugin, module_name);
+	      plugin_candidate_set_preference(candidate_plugin, module_info->preference);
+	    }
+	}
+      else
+	{
+	  cfg->candidate_plugins = g_list_prepend(cfg->candidate_plugins, plugin_candidate_new(plugin->type, plugin->name, module_name, module_info->preference));
+	}
+    }
+
+}
+
+void
+plugin_load_module_permanently(GlobalConfig* cfg, ModuleInfo* module_info, gchar* module_name, GModule* mod)
+{
+   if (module_info->lua_reg_func)
+   {
+      module_info->lua_reg_func(cfg);
+      g_module_make_resident(mod);
+   }
+}
+
+void
+plugin_load_candidate_modules(GlobalConfig* cfg)
+{
+   plugin_load_candidate_modules_skeleton(cfg, plugin_load_candidate_plugins_from_module); 
+}
+
+void
+plugin_load_all_modules(GlobalConfig* cfg)
+{
+   plugin_load_candidate_modules_skeleton(cfg, plugin_load_module_permanently);
+}
+
+void
+plugin_load_candidate_modules_skeleton(GlobalConfig *cfg, module_candidate_load_func load_func)
 {
   GModule *mod;
   gchar **mod_paths;
-  gint i, j;
+  gint i;
 
   mod_paths = g_strsplit(module_path, ":", 0);
   for (i = 0; mod_paths[i]; i++)
@@ -431,32 +488,7 @@ plugin_load_candidate_modules(GlobalConfig *cfg)
 
               if (module_info)
                 {
-                  for (j = 0; j < module_info->plugins_len; j++)
-                    {
-                      Plugin *plugin = &module_info->plugins[j];
-                      PluginCandidate *candidate_plugin;
-
-                      candidate_plugin = (PluginCandidate *) plugin_find_in_list(cfg, cfg->candidate_plugins, plugin->type, plugin->name);
-
-                      msg_debug("Registering candidate plugin",
-                                evt_tag_str("module", module_name),
-                                evt_tag_str("context", cfg_lexer_lookup_context_name_by_type(plugin->type)),
-                                evt_tag_str("name", plugin->name),
-                                evt_tag_int("preference", module_info->preference),
-                                NULL);
-                      if (candidate_plugin)
-                        {
-                          if (candidate_plugin->preference < module_info->preference)
-                            {
-                              plugin_candidate_set_module_name(candidate_plugin, module_name);
-                              plugin_candidate_set_preference(candidate_plugin, module_info->preference);
-                            }
-                        }
-                      else
-                        {
-                          cfg->candidate_plugins = g_list_prepend(cfg->candidate_plugins, plugin_candidate_new(plugin->type, plugin->name, module_name, module_info->preference));
-                        }
-                    }
+                  load_func(cfg, module_info, module_name, mod);
                 }
               g_free(module_name);
               if (mod)

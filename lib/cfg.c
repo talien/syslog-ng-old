@@ -43,6 +43,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <iv_work.h>
+#include <gmodule.h>
 
 /* PersistentConfig */
 
@@ -81,6 +82,16 @@ persist_config_free(PersistConfig *self)
 {
   g_hash_table_destroy(self->keys);
   g_free(self);
+}
+
+gint
+cfg_get_conf_format(gchar* format)
+{
+  if (strcmp(format, "standard") == 0)
+    return CFG_TYPE_STANDARD;
+  else if (strcmp(format, "lua") == 0)
+    return CFG_TYPE_LUA;
+  return CFG_TYPE_STANDARD;
 }
 
 gint
@@ -375,7 +386,11 @@ cfg_read_config(GlobalConfig *self, gchar *fname, gboolean syntax_only, gchar *p
   gint res;
 
   self->filename = fname;
-
+  if (self->cfg_type == CFG_TYPE_LUA)
+  {
+     return lua_config_load(self, fname);
+  }
+  
   if ((cfg_file = fopen(fname, "r")) != NULL)
     {
       CfgLexer *lexer;

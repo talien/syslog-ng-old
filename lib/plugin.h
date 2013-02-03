@@ -27,6 +27,8 @@
 
 #include "cfg-parser.h"
 #include "cfg-grammar.h"
+#include <gmodule.h>
+#include <luaconfig.h>
 
 typedef struct _Plugin Plugin;
 typedef struct _ModuleInfo ModuleInfo;
@@ -62,6 +64,7 @@ struct _ModuleInfo
   const gchar *core_revision;
   Plugin *plugins;
   gint plugins_len;
+  cfg_lua_register_func lua_reg_func;
   /* the higher the better */
   gint preference;
 };
@@ -70,7 +73,7 @@ struct _ModuleInfo
 Plugin *plugin_find(GlobalConfig *cfg, gint plugin_type, const gchar *plugin_name);
 gpointer plugin_construct(Plugin *self, GlobalConfig *cfg, gint plugin_type, const gchar *plugin_name);
 gpointer plugin_parse_config(Plugin *plugin, GlobalConfig *cfg, YYLTYPE *yylloc, gpointer arg);
-
+GModule *plugin_dlopen_module(const gchar *module_name, const gchar *module_path);
 
 /* plugin side API */
 

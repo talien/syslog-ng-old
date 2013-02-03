@@ -90,6 +90,7 @@ static gchar *cfgfilename = PATH_SYSLOG_NG_CONF;
 static const gchar *persist_file = PATH_PERSIST_CONFIG;
 static gchar *ctlfilename = PATH_CONTROL_SOCKET;
 static gchar *preprocess_into = NULL;
+static gchar* config_type = "standard";
 gboolean syntax_only = FALSE;
 
 
@@ -543,6 +544,14 @@ main_loop_reload_config_apply(void)
   return;
 }
 
+static GlobalConfig* 
+main_loop_create_config(int version, gchar* type)
+{
+   GlobalConfig* result = cfg_new(version);
+   result->cfg_type = cfg_get_conf_format(type);
+   return result;
+}
+
 /* initiate configuration reload */
 void
 main_loop_reload_config_initiate(void)
@@ -560,7 +569,7 @@ main_loop_reload_config_initiate(void)
     }
   main_loop_old_config = current_configuration;
   app_pre_config_loaded();
-  main_loop_new_config = cfg_new(0);
+  main_loop_new_config = main_loop_create_config(0, config_type);
   if (!cfg_read_config(main_loop_new_config, cfgfilename, FALSE, NULL))
     {
       cfg_free(main_loop_new_config);
@@ -675,7 +684,7 @@ main_loop_init(void)
   log_queue_set_max_threads(MIN(main_loop_io_workers.max_threads, MAIN_LOOP_MAX_WORKER_THREADS));
   main_loop_call_init();
 
-  current_configuration = cfg_new(0);
+  current_configuration = main_loop_create_config(0, config_type);
   if (!cfg_read_config(current_configuration, cfgfilename, syntax_only, preprocess_into))
     {
       return 1;
@@ -752,6 +761,7 @@ static GOptionEntry main_loop_options[] =
   { "worker-threads",      0,         0, G_OPTION_ARG_INT, &main_loop_io_workers.max_threads, "Set the number of I/O worker threads", "<max>" },
   { "syntax-only",       's',         0, G_OPTION_ARG_NONE, &syntax_only, "Only read and parse config file", NULL},
   { "control",           'c',         0, G_OPTION_ARG_STRING, &ctlfilename, "Set syslog-ng control socket, default=" PATH_CONTROL_SOCKET, "<ctlpath>" },
+  { "config-type",	 0,	      0, G_OPTION_ARG_STRING, &config_type, "Configureation file type, possible values: standard, lua; default=standard", "<cfg-type>"},
   { NULL },
 };
 

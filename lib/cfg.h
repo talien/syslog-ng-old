@@ -34,6 +34,7 @@
 
 #include <sys/types.h>
 #include <regex.h>
+#include <lua.h>
 
 /* destination mark modes */
 enum
@@ -44,6 +45,12 @@ enum
   MM_PERIODICAL,
   MM_NONE,
   MM_GLOBAL,
+};
+
+enum
+{
+   CFG_TYPE_STANDARD = 0,
+   CFG_TYPE_LUA,
 };
 
 /* configuration data kept between configuration reloads */
@@ -113,6 +120,9 @@ struct _GlobalConfig
   PersistState *state;
   
   CfgTree tree;
+
+  gint cfg_type;
+  lua_State* lua_cfg_state;
 
 };
 

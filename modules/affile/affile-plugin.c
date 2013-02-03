@@ -23,6 +23,7 @@
 
 #include "cfg-parser.h"
 #include "plugin.h"
+#include "affile-lua.h"
 
 extern CfgParser affile_parser;
 
@@ -65,4 +66,5 @@ const ModuleInfo module_info =
   .core_revision = SOURCE_REVISION,
   .plugins = affile_plugins,
   .plugins_len = G_N_ELEMENTS(affile_plugins),
+  .lua_reg_func = affile_register_lua_config,
 };

@@ -434,6 +434,8 @@ plugin_load_module_permanently(GlobalConfig* cfg, ModuleInfo* module_info, gchar
       module_info->lua_reg_func(cfg);
       g_module_make_resident(mod);
    }
+   else
+      plugin_load_candidate_plugins_from_module(cfg, module_info, module_name, mod);
 }
 
 void

@@ -59,6 +59,8 @@ msg_format_options_init(MsgFormatOptions *options, GlobalConfig *cfg)
   p = plugin_find(cfg, LL_CONTEXT_FORMAT, options->format);
   if (p)
     options->format_handler = plugin_construct(p, cfg, LL_CONTEXT_FORMAT, options->format);
+  else
+    msg_error("Couldn't find plugin for msg format", evt_tag_str("format", options->format), NULL);
   options->initialized = TRUE;
 }
 

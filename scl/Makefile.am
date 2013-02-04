@@ -1,5 +1,5 @@
 SCL_SUBDIRS = system pacct syslogconf
-SCL_CONFIGS = scl.conf syslog-ng.conf
+SCL_CONFIGS = scl.conf syslog-ng.conf syslog-ng-conf.lua
 EXTRA_DIST = $(SCL_CONFIGS) $(SCL_SUBDIRS)
 
 scldir = $(datadir)/include/scl

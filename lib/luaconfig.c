@@ -4,8 +4,9 @@
 #include "luaconfig.h"
 #include "driver.h"
 #include <gmodule.h>
+#include "lua-filter.h"
 
-static GlobalConfig* lua_get_config(lua_State* state)
+GlobalConfig* lua_get_config(lua_State* state)
 {
     lua_getglobal(state, "__conf");
     return lua_topointer(state, -1);
@@ -131,11 +132,21 @@ static int lua_config_log(lua_State* state)
    cfg_tree_add_object(&self->tree, rule);
    return 0;
 }
+
+static int lua_config_internal(lua_State* state)
+{
+   LogDriver* d = afinter_sd_new();
+   lua_pushlightuserdata(state, d);
+   return 1;;
+}
+
 void lua_config_register(lua_State* state, GlobalConfig* conf)
 {
    lua_register(state, "Source", lua_config_source);
    lua_register(state, "Destination", lua_config_destination);
    lua_register(state, "Log", lua_config_log);
+   lua_register(state, "Internal", lua_config_internal);
+   cfg_lua_register_filter(state);
    lua_pushlightuserdata(state, conf);
    lua_setglobal(state, "__conf");
 }

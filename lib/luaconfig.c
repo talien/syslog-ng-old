@@ -12,8 +12,11 @@
 
 GlobalConfig* lua_get_config(lua_State* state)
 {
+    GlobalConfig* result;
     lua_getglobal(state, "__conf");
-    return lua_topointer(state, -1);
+    result = lua_topointer(state, -1);
+    lua_pop(state, 1);
+    return result;
 }
 
 void lua_register_type(lua_State* state, const char* type)
@@ -346,12 +349,32 @@ static int lua_config_internal(lua_State* state)
    return 1;
 }
 
+static int lua_config_register_global_options(LuaOptionParser* parser, GlobalConfig* config)
+{
+   lua_option_parser_add(parser, "mark_freq", LUA_PARSE_TYPE_INT, &config->mark_freq);
+   lua_option_parser_add(parser, "stats_freq", LUA_PARSE_TYPE_INT, &config->stats_freq);
+   lua_option_parser_add(parser, "stats_level", LUA_PARSE_TYPE_INT, &config->stats_level);
+   lua_option_parser_add(parser, "flush_lines", LUA_PARSE_TYPE_INT, &config->flush_lines); 
+}
+
+static int lua_config_global_options(lua_State* state)
+{
+   LuaOptionParser* parser;
+   GlobalConfig* conf = lua_get_config(state); 
+   parser = lua_option_parser_new();
+   lua_config_register_global_options(parser, conf); 
+   lua_option_parser_parse(parser, state);
+   lua_option_parser_destroy(parser);
+   return 0;
+}
+
 void lua_config_register(lua_State* state, GlobalConfig* conf)
 {
    lua_register(state, "Source", lua_config_source);
    lua_register(state, "Destination", lua_config_destination);
    lua_register(state, "Log", lua_config_log);
    lua_register(state, "Internal", lua_config_internal);
+   lua_register(state, "Options", lua_config_global_options);
    lua_register_type(state, LUA_SOURCE_DRIVER_TYPE);
    lua_register_type(state, LUA_DESTINATION_DRIVER_TYPE);
    lua_register_type(state, LUA_LOG_EXPR_TYPE);

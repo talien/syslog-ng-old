@@ -349,12 +349,57 @@ static int lua_config_internal(lua_State* state)
    return 1;
 }
 
+static void lua_config_global_option_set_mark(lua_State* state, void* data)
+{
+   GlobalConfig* config = (GlobalConfig*) data;
+   char* mark_mode_name = lua_tostring(state, -1);
+   int mark_mode = cfg_lookup_mark_mode(mark_mode_name);
+   if ((mark_mode == MM_GLOBAL) || (mark_mode == MM_INTERNAL) )
+   {
+      config->mark_mode = mark_mode;
+   }
+   else
+   { 
+      msg_info("WARNING, illegal global mark mode", NULL);
+   }
+}
+
 static int lua_config_register_global_options(LuaOptionParser* parser, GlobalConfig* config)
 {
    lua_option_parser_add(parser, "mark_freq", LUA_PARSE_TYPE_INT, &config->mark_freq);
    lua_option_parser_add(parser, "stats_freq", LUA_PARSE_TYPE_INT, &config->stats_freq);
    lua_option_parser_add(parser, "stats_level", LUA_PARSE_TYPE_INT, &config->stats_level);
    lua_option_parser_add(parser, "flush_lines", LUA_PARSE_TYPE_INT, &config->flush_lines); 
+   lua_option_parser_add_func(parser, "mark_mode", lua_config_global_option_set_mark, config);
+   lua_option_parser_add(parser, "flush_timeout", LUA_PARSE_TYPE_INT, &config->flush_timeout);
+   lua_option_parser_add(parser, "chain_hostnames", LUA_PARSE_TYPE_BOOL, &config->chain_hostnames);
+   lua_option_parser_add(parser, "normalize_hostnames", LUA_PARSE_TYPE_BOOL, &config->normalize_hostnames);
+   lua_option_parser_add(parser, "keep_hostname", LUA_PARSE_TYPE_BOOL, &config->keep_hostname);
+   lua_option_parser_add(parser, "check_hostname", LUA_PARSE_TYPE_BOOL, &config->check_hostname);
+   //bad hostname
+   lua_option_parser_add(parser, "use_fqdn", LUA_PARSE_TYPE_BOOL, &config->use_fqdn);
+   //use_dns
+   lua_option_parser_add(parser, "time_reopen", LUA_PARSE_TYPE_INT, &config->time_reopen);
+   lua_option_parser_add(parser, "time_reap", LUA_PARSE_TYPE_INT, &config->time_reap);
+   lua_option_parser_add(parser, "suppress",LUA_PARSE_TYPE_INT, &config->suppress);
+   lua_option_parser_add(parser, "threaded", LUA_PARSE_TYPE_BOOL, &config->threaded);
+   lua_option_parser_add(parser, "log_fifo_size", LUA_PARSE_TYPE_INT, &config->log_fifo_size);
+   lua_option_parser_add(parser, "log_msg_size", LUA_PARSE_TYPE_INT, &config->log_msg_size);
+   lua_option_parser_add(parser, "keep_timestamp", LUA_PARSE_TYPE_BOOL, &config->keep_timestamp);
+   //ts_format
+   lua_option_parser_add(parser, "frac_digits", LUA_PARSE_TYPE_INT, &config->template_options.frac_digits);
+   lua_option_parser_add(parser, "create_dirs", LUA_PARSE_TYPE_BOOL, &config->create_dirs);
+   //permission options
+   lua_option_parser_add(parser, "dns_cache", LUA_PARSE_TYPE_BOOL, &config->use_dns_cache);
+   lua_option_parser_add(parser, "dns_cache_size", LUA_PARSE_TYPE_INT, &config->dns_cache_size);
+   lua_option_parser_add(parser, "dns_cache_expire", LUA_PARSE_TYPE_INT, &config->dns_cache_expire);
+   lua_option_parser_add(parser, "dns_cache_expire_failed", LUA_PARSE_TYPE_INT, &config->dns_cache_expire_failed);
+   lua_option_parser_add(parser, "dns_cache_hosts", LUA_PARSE_TYPE_STR, &config->dns_cache_hosts);
+   lua_option_parser_add(parser, "file_template", LUA_PARSE_TYPE_STR, &config->file_template_name);
+   lua_option_parser_add(parser, "proto_template", LUA_PARSE_TYPE_STR, &config->proto_template_name);
+   lua_option_parser_add(parser, "recv_time_zone", LUA_PARSE_TYPE_STR, &config->recv_time_zone);
+   lua_option_parser_add(parser, "send_time_zone", LUA_PARSE_TYPE_STR, &config->template_options.time_zone[LTZ_SEND]);
+   lua_option_parser_add(parser, "local_time_zone", LUA_PARSE_TYPE_STR, &config->template_options.time_zone[LTZ_LOCAL]);  
 }
 
 static int lua_config_global_options(lua_State* state)

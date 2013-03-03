@@ -53,19 +53,21 @@ LogExprNode* lua_parse_driver_array(lua_State* state, const char* driver_type)
    while(lua_next(state, -2)) { 
       if(lua_isuserdata(state, -1)) 
       {
-          driver = lua_check_and_convert_userdata(state, -1, driver_type);
-	  if (!driver)
-	  {
-             fprintf(stderr, "Lofasz happened!\n");
-	  }
-	  else
-	  {
-	    content = log_expr_node_append_tail(content, log_expr_node_new_pipe(driver, NULL));
-          }
+        driver = lua_check_and_convert_userdata(state, -1, driver_type);
+	    if (!driver)
+        {
+            msg_error("Driver type is not correct", evt_tag_str("expected_type", driver_type), NULL);
+            //TODO: fatal or non-fatal error?
+        }
+        else
+        {
+	        content = log_expr_node_append_tail(content, log_expr_node_new_pipe(driver, NULL));
+        }
       }
       else
       {
-          fprintf(stderr, "Lofasz2 happened!\n");
+         msg_error("Non-driver type passed to driver array", NULL);
+         //TODO: fatal or non-fatal error?
       }
       lua_pop(state, 1);
    }

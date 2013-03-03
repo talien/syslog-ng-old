@@ -61,6 +61,8 @@ pkginclude_HEADERS = 		\
 	logwriter.h		\
 	luaconfig.h		\
 	lua-filter.h		\
+    lua-option-parser.h \
+    lua-options.h   \
 	mainloop.h		\
 	memtrace.h		\
 	messages.h		\
@@ -145,6 +147,8 @@ libsyslog_ng_la_SOURCES = \
 	logwriter.c		\
 	luaconfig.c		\
 	lua-filter.c		\
+    lua-option-parser.c \
+    lua-options.c   \
 	mainloop.c		\
 	memtrace.c		\
 	messages.c		\

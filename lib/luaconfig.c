@@ -158,34 +158,33 @@ void lua_option_parser_parse(LuaOptionParser* parser, lua_State* state)
       if (lua_isstring(state, -2))
       {
          key = lua_tostring(state, -2);
-	 msg_debug("Parsing options", evt_tag_str("option", key), NULL);
+	     msg_debug("Parsing options", evt_tag_str("option", key), NULL);
          LuaOptionParserItem* item = g_hash_table_lookup(parser->parsers, key);
          if (item)
          {
             if (item->type == LUA_PARSE_TYPE_INT)
-	    {
+            {
                *((int*)item->udata) = lua_tointeger(state, -1);
-	    }
+            }
 	
             if (item->type == LUA_PARSE_TYPE_BOOL)
-	    {
+            {
                *((int*)item->udata) = lua_toboolean(state, -1);
-	    }
+            }
 
             if (item->type == LUA_PARSE_TYPE_STR)
-	    {
+            {
                *((char**)item->udata) = g_strdup(lua_tostring(state, -1));
-	    }
-	    if (item->type == LUA_PARSE_TYPE_FUNC)
-	    {
-		item->func(state, item->udata);
-	    }
-
-         }
-	 else msg_debug("Unknown key for source options", evt_tag_str("key", key), NULL);
-      }
-      lua_pop(state, 1);
-   }
+            }
+            if (item->type == LUA_PARSE_TYPE_FUNC)
+            {
+                item->func(state, item->udata);
+            }
+        }
+	    else msg_debug("Unknown key for source options", evt_tag_str("key", key), NULL);
+     }
+     lua_pop(state, 1);
+  }
   
 }
 

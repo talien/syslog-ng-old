@@ -9,7 +9,7 @@ import messagegen
 syslogng_pid = 0
 
 
-def start_syslogng(conf, keep_persist=False, verbose=False):
+def start_syslogng(conf, keep_persist=False, verbose=False, config_type = "normal"):
     global syslogng_pid
 
     os.system('rm -f test-*.log test-*.lgs test-*.db wildcard/* log-file')
@@ -35,7 +35,12 @@ def start_syslogng(conf, keep_persist=False, verbose=False):
         for (root, dirs, files) in os.walk(os.path.abspath(os.path.join(os.environ['top_builddir'], 'modules'))):
             module_path = ':'.join(map(lambda x: root + '/' + x + '/.libs', dirs))
             break
-        rc = os.execl('../../syslog-ng/syslog-ng', '../../syslog-ng/syslog-ng', '-f', 'test.conf', '--fd-limit', '1024', '-F', verbose_opt, '-p', 'syslog-ng.pid', '-R', 'syslog-ng.persist', '--no-caps', '--enable-core', '--seed', '--module-path', module_path)
+        syslogng_opts = ['-f', 'test.conf', '--fd-limit', '1024', '-F', verbose_opt, '-p', 'syslog-ng.pid', '-R', 'syslog-ng.persist', '--no-caps', '--enable-core', '--seed', '--module-path', module_path]
+        if config_type != "normal":
+           syslogng_opts += ['--config-type',config_type]
+        syslog_ng_binary = '../../syslog-ng/syslog-ng'
+        syslog_ng_args = [syslog_ng_binary, syslog_ng_binary] + syslogng_opts
+        rc = os.execl(*syslog_ng_args)
         sys.exit(rc)
     time.sleep(5)
     print_user("Syslog-ng started")

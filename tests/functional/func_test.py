@@ -1,29 +1,36 @@
-#!/usr/bin/env python
-
-import os, errno
-
-#internal modules
+#!/usr/bin/python
+from func_test_case import SyslogNGTestCase
+import sys,os, re
 from log import *
-from messagegen import *
-from control import *
-from globals import *
-import messagegen
 
+sys.path += ['.']
 
+def discover_test_modules(path):
+    return [ i.split(".")[0] for i in os.listdir(path) if re.match("test_.*\.py$", i) ]
 
-def init_env():
-    for pipe in ('log-pipe', 'log-padded-pipe'):
-        try:
-            os.unlink(pipe)
-        except OSError:
-            pass
-        os.mkfifo(pipe)
-    try:
-        os.mkdir("wildcard")
-    except OSError, e:
-        if e.errno != errno.EEXIST:
-            raise
+def discover_test_cases_from_module(module_name):
+    modul = __import__(module_name)
+    return [ getattr(modul,i) for i in dir(modul) if isinstance(getattr(modul,i), type) and issubclass(getattr(modul,i),SyslogNGTestCase)]
 
+def run_tests_from_test_case_class_list(tests):
+    succeeded = 0
+    failed = 0
+    for test_case in tests:
+        test = test_case(False)
+        print_big_banner("Running tests from test_case: %s" % test_case.__name__)
+        (test_succeeded, test_failed) =  test.run()
+        succeeded = succeeded + test_succeeded
+        failed = failed + test_failed
+
+    print_big_banner("Results: all testcases:%d, success:%d failure:%d " % (succeeded + failed, succeeded, failed))
+    return failed
+       
+def run_tests():
+    test_modules = discover_test_modules('./')
+    tests = set()
+    for module in test_modules:
+        tests |= set(discover_test_cases_from_module(module))
+    return run_tests_from_test_case_class_list(list(tests))
 
 def seed_rnd():
     # Some platforms lack kernel supported random numbers, on those we have to explicitly seed the RNG.
@@ -56,53 +63,6 @@ l625DLckaYmOPTh0ECFKzhaPF+/LNmzD36ToOAeuNjfbUjiUVGfntr2mc4E8mUFyo+TskrkSfw==
     except ImportError:
         return
 
-
-# import test modules
-import test_file_source
-import test_filters
-import test_input_drivers
-import test_performance
-import test_sql
-
-tests = (test_input_drivers, test_sql, test_file_source, test_filters, test_performance)
-
-init_env()
 seed_rnd()
 
-
-verbose = False
-success = True
-rc = 0
-if len(sys.argv) > 1:
-    verbose = True
-try:
-    for test_module in tests:
-        if hasattr(test_module, "check_env") and not test_module.check_env():
-            continue
-
-
-        contents = dir(test_module)
-        contents.sort()
-        for obj in contents:
-            if obj[:5] != 'test_':
-                continue
-            test_case = getattr(test_module, obj)
-            test_name = test_module.__name__ + '.' + obj
-            print_start(test_name)
-
-
-            if not start_syslogng(test_module.config, verbose):
-                sys.exit(1)
-
-            print_user("Starting test case...")
-            success = test_case()
-            if not stop_syslogng():
-                sys.exit(1)
-            print_end(test_name, success)
-
-            if not success:
-                rc = 1
-finally:
-    stop_syslogng()
-
-sys.exit(rc)
+sys.exit(run_tests())

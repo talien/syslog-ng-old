@@ -364,21 +364,91 @@ static void lua_config_global_option_set_mark(lua_State* state, void* data)
    }
 }
 
-static int lua_config_register_global_options(LuaOptionParser* parser, GlobalConfig* config)
+static void lua_config_global_option_set_tsformat(lua_State* state, void* data)
+{
+   GlobalConfig* config = (GlobalConfig*) data;
+   char* ts_format = lua_tostring(state, -1);
+   config->template_options.ts_format = cfg_ts_format_value(ts_format);
+}
+
+static void lua_config_global_option_set_bad_hostname(lua_State* state, void* data)
+{
+   GlobalConfig* config = (GlobalConfig*) data;
+   char* bad_hostname = lua_tostring(state, -1);
+   cfg_bad_hostname_set(config, bad_hostname);
+}
+
+static void lua_config_global_option_set_use_dns(lua_State* state, void* data)
+{
+   GlobalConfig* config = (GlobalConfig*) data;
+   char* dnsmode = lua_tostring(state, -1);
+   if (!strncmp("yes", dnsmode, sizeof(dnsmode)))
+     config->use_dns = 1;
+   else if (!strncmp("no", dnsmode, sizeof(dnsmode)))
+     config->use_dns = 0;
+   else if (!strncmp("persist-only", dnsmode, sizeof(dnsmode)))
+     config->use_dns = 2;
+   else
+     msg_error("Wrong parameter for use-dns!", NULL);
+}
+
+static void lua_config_global_option_set_owner(lua_State* state, void* data)
+{
+   GlobalConfig* config = (GlobalConfig*) data;
+   const char* owner = lua_tostring(state, -1);
+   cfg_file_owner_set(config, owner);
+}
+
+static void lua_config_global_option_set_group(lua_State* state, void* data)
+{
+   GlobalConfig* config = (GlobalConfig*) data;
+   const char* group = lua_tostring(state, -1);
+   cfg_file_group_set(config, group);
+}
+
+static void lua_config_global_option_set_perm(lua_State* state, void* data)
+{
+   GlobalConfig* config = (GlobalConfig*) data;
+   int perm = lua_tointeger(state, -1);
+   cfg_file_perm_set(config, perm);
+}
+
+static void lua_config_global_option_set_dir_owner(lua_State* state, void* data)
+{
+   GlobalConfig* config = (GlobalConfig*) data;
+   const char* owner = lua_tostring(state, -1);
+   cfg_dir_owner_set(config, owner);
+}
+
+static void lua_config_global_option_set_dir_group(lua_State* state, void* data)
+{
+   GlobalConfig* config = (GlobalConfig*) data;
+   const char* group = lua_tostring(state, -1);
+   cfg_dir_group_set(config, group);
+}
+
+static void lua_config_global_option_set_dir_perm(lua_State* state, void* data)
+{
+   GlobalConfig* config = (GlobalConfig*) data;
+   int perm = lua_tointeger(state, -1);
+   cfg_dir_perm_set(config, perm);
+}
+
+static void lua_config_register_global_options(LuaOptionParser* parser, GlobalConfig* config)
 {
    lua_option_parser_add(parser, "mark_freq", LUA_PARSE_TYPE_INT, &config->mark_freq);
    lua_option_parser_add(parser, "stats_freq", LUA_PARSE_TYPE_INT, &config->stats_freq);
    lua_option_parser_add(parser, "stats_level", LUA_PARSE_TYPE_INT, &config->stats_level);
    lua_option_parser_add(parser, "flush_lines", LUA_PARSE_TYPE_INT, &config->flush_lines); 
-   lua_option_parser_add_func(parser, "mark_mode", lua_config_global_option_set_mark, config);
+   lua_option_parser_add_func(parser, "mark_mode", config, lua_config_global_option_set_mark);
    lua_option_parser_add(parser, "flush_timeout", LUA_PARSE_TYPE_INT, &config->flush_timeout);
    lua_option_parser_add(parser, "chain_hostnames", LUA_PARSE_TYPE_BOOL, &config->chain_hostnames);
    lua_option_parser_add(parser, "normalize_hostnames", LUA_PARSE_TYPE_BOOL, &config->normalize_hostnames);
    lua_option_parser_add(parser, "keep_hostname", LUA_PARSE_TYPE_BOOL, &config->keep_hostname);
    lua_option_parser_add(parser, "check_hostname", LUA_PARSE_TYPE_BOOL, &config->check_hostname);
-   //bad hostname
+   lua_option_parser_add_func(parser, "bad_hostname", config, lua_config_global_option_set_bad_hostname);
    lua_option_parser_add(parser, "use_fqdn", LUA_PARSE_TYPE_BOOL, &config->use_fqdn);
-   //use_dns
+   lua_option_parser_add_func(parser, "use_dns", config, lua_config_global_option_set_use_dns);
    lua_option_parser_add(parser, "time_reopen", LUA_PARSE_TYPE_INT, &config->time_reopen);
    lua_option_parser_add(parser, "time_reap", LUA_PARSE_TYPE_INT, &config->time_reap);
    lua_option_parser_add(parser, "suppress",LUA_PARSE_TYPE_INT, &config->suppress);
@@ -386,10 +456,15 @@ static int lua_config_register_global_options(LuaOptionParser* parser, GlobalCon
    lua_option_parser_add(parser, "log_fifo_size", LUA_PARSE_TYPE_INT, &config->log_fifo_size);
    lua_option_parser_add(parser, "log_msg_size", LUA_PARSE_TYPE_INT, &config->log_msg_size);
    lua_option_parser_add(parser, "keep_timestamp", LUA_PARSE_TYPE_BOOL, &config->keep_timestamp);
-   //ts_format
+   lua_option_parser_add_func(parser, "ts_format", config, lua_config_global_option_set_tsformat);
    lua_option_parser_add(parser, "frac_digits", LUA_PARSE_TYPE_INT, &config->template_options.frac_digits);
    lua_option_parser_add(parser, "create_dirs", LUA_PARSE_TYPE_BOOL, &config->create_dirs);
-   //permission options
+   lua_option_parser_add_func(parser, "owner", config, lua_config_global_option_set_owner);
+   lua_option_parser_add_func(parser, "gruop", config, lua_config_global_option_set_group);
+   lua_option_parser_add_func(parser, "perm", config, lua_config_global_option_set_perm);
+   lua_option_parser_add_func(parser, "dir_owner", config, lua_config_global_option_set_dir_owner);
+   lua_option_parser_add_func(parser, "dir_group", config, lua_config_global_option_set_dir_group);
+   lua_option_parser_add_func(parser, "dir_perm", config,  lua_config_global_option_set_dir_perm);
    lua_option_parser_add(parser, "dns_cache", LUA_PARSE_TYPE_BOOL, &config->use_dns_cache);
    lua_option_parser_add(parser, "dns_cache_size", LUA_PARSE_TYPE_INT, &config->dns_cache_size);
    lua_option_parser_add(parser, "dns_cache_expire", LUA_PARSE_TYPE_INT, &config->dns_cache_expire);

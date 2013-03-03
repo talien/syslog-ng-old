@@ -212,9 +212,44 @@ void lua_option_parser_register_source_options(LuaOptionParser* parser, LogSourc
    //TODO: tags!
 }
 
+void lua_option_parser_register_source_proto_options(LuaOptionParser* parser, LogProtoServerOptions* options)
+{
+   lua_option_parser_add(parser, "encoding", LUA_PARSE_TYPE_STR, &options->encoding);
+   lua_option_parser_add(parser, "log_msg_size", LUA_PARSE_TYPE_INT, &options->max_msg_size);
+}
+
+void lua_option_parser_msg_format_set_facility(lua_State* state, void* data)
+{
+   MsgFormatOptions* options = (MsgFormatOptions*) data;
+   char* facility_str = lua_tostring(state, -1);
+   int facility = syslog_name_lookup_facility_by_name(facility_str);
+   if (options->default_pri == 0xFFFF)
+      options->default_pri = LOG_USER;
+   options->default_pri = (options->default_pri & ~7) | facility;
+}
+
+void lua_option_parser_msg_format_set_severity(lua_State* state, void* data)
+{
+   MsgFormatOptions* options = (MsgFormatOptions*) data;
+   char* severity_str = lua_tostring(state, -1);
+   int severity = syslog_name_lookup_level_by_name(severity_str);
+   if (options->default_pri == 0xFFFF)
+      options->default_pri = LOG_NOTICE;
+   options->default_pri = (options->default_pri & 7) | severity;
+}
+
+void lua_option_parser_register_msg_format_options(LuaOptionParser* parser, MsgFormatOptions* options)
+{
+   lua_option_parser_add(parser, "time_zone", LUA_PARSE_TYPE_STR, &options->recv_time_zone);
+   lua_option_parser_add_func(parser, "default_facility", options, lua_option_parser_msg_format_set_facility);
+   lua_option_parser_add_func(parser, "default_level", options, lua_option_parser_msg_format_set_severity);
+}
+
 void lua_option_parser_register_reader_options(LuaOptionParser* parser, LogReaderOptions* options)
 {
    lua_option_parser_register_source_options(parser, &options->super);
+   lua_option_parser_register_source_proto_options(parser, &options->proto_options.super);
+   lua_option_parser_register_msg_format_options(parser, &options->parse_options);
    lua_option_parser_add(parser, "check_hostname", LUA_PARSE_TYPE_BOOL, &options->check_hostname);
    lua_option_parser_add(parser, "log_fetch_limit", LUA_PARSE_TYPE_INT, &options->fetch_limit);
    lua_option_parser_add(parser, "format", LUA_PARSE_TYPE_STR, &options->parse_options.format);

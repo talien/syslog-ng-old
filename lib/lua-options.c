@@ -57,6 +57,22 @@ void lua_option_parser_register_msg_format_options(LuaOptionParser* parser, MsgF
    lua_option_parser_add_func(parser, "default_level", options, lua_option_parser_msg_format_set_severity);
 }
 
+void lua_reader_options_parse_flags(lua_State* state, void* data)
+{
+   LogReaderOptions* options = (LogReaderOptions*) data;
+   lua_pushnil(state);
+   const char* flag;
+   while (lua_next(state, -2))
+   {
+      flag = lua_tostring(state, -1);
+      if (!log_reader_options_process_flag(options, flag))
+      {
+        msg_error("Wrong reader flag", evt_tag_str("flag",flag), NULL);
+      }
+      lua_pop(state, 1);
+   }
+}
+
 void lua_option_parser_register_reader_options(LuaOptionParser* parser, LogReaderOptions* options)
 {
    lua_option_parser_register_source_options(parser, &options->super);
@@ -65,6 +81,7 @@ void lua_option_parser_register_reader_options(LuaOptionParser* parser, LogReade
    lua_option_parser_add(parser, "check_hostname", LUA_PARSE_TYPE_BOOL, &options->check_hostname);
    lua_option_parser_add(parser, "log_fetch_limit", LUA_PARSE_TYPE_INT, &options->fetch_limit);
    lua_option_parser_add(parser, "format", LUA_PARSE_TYPE_STR, &options->parse_options.format);
+   lua_option_parser_add_func(parser, "flags", options, lua_reader_options_parse_flags);
 }
 
 int lua_parse_source_options(lua_State* state, LogSourceOptions* s)

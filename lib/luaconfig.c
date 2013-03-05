@@ -178,12 +178,34 @@ static int lua_config_destination(lua_State* state)
    return lua_config_destination_named(state);
 }
 
-LogExprNode* lua_parse_expr_array(lua_State* state)
+static int lua_config_parse_log_flags(lua_State* state)
+{
+   int flags = 0;
+   lua_pushnil(state);
+   while (lua_next(state, -2))
+   {
+      const char* flag_name = lua_tostring(state, -1);
+      flags = flags | log_expr_node_lookup_flag(flag_name);
+      lua_pop(state, 1);  
+   }
+   return flags;
+}
+
+LogExprNode* lua_parse_expr_array(lua_State* state, int* flags)
 {
    LogExprNode *content = NULL, *item = NULL, *forks = NULL;
+   int log_flags = 0;
    lua_pushnil(state);
    while(lua_next(state, -2)) 
    { 
+      if(!lua_isnumber(state, -2) && lua_isstring(state, -2))
+      {
+         char* key = lua_tostring(state, -2);
+         if (!strncmp("flags", key, 5))
+         {
+            log_flags = lua_config_parse_log_flags(state);
+         }
+      }
       if(lua_isuserdata(state, -1)) 
       {
           item = lua_check_and_convert_userdata(state, -1, LUA_LOG_EXPR_TYPE );
@@ -200,14 +222,21 @@ LogExprNode* lua_parse_expr_array(lua_State* state)
    }
    if (forks)
      content = log_expr_node_append_tail(content,log_expr_node_new_junction(forks, NULL));
+   *flags = log_flags;
    return content; 
+}
+
+static LogExprNode* lua_config_create_rule_from_exprs(lua_State* state)
+{
+   int flags = 0;
+   LogExprNode* rule = lua_parse_expr_array(state, &flags);
+   return log_expr_node_new_log(rule, flags, NULL);
 }
 
 static int lua_config_log(lua_State* state)
 {
    GlobalConfig* self;
-   LogExprNode* rule = lua_parse_expr_array(state);
-   rule = log_expr_node_new_log(rule, 0, NULL);
+   LogExprNode* rule = lua_config_create_rule_from_exprs(state);
    self = lua_get_config(state);
    cfg_tree_add_object(&self->tree, rule);
    return 0;
@@ -215,8 +244,7 @@ static int lua_config_log(lua_State* state)
 
 static int lua_config_embedded_log(lua_State* state)
 {
-   LogExprNode* rule = lua_parse_expr_array(state);
-   rule = log_expr_node_new_log(rule, 0, NULL);
+   LogExprNode* rule = lua_config_create_rule_from_exprs(state);
    lua_create_userdata_from_pointer(state, rule, LUA_LOG_FORK_TYPE);
    return 1;
 }

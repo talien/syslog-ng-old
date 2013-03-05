@@ -2,13 +2,28 @@
 #include "lua-filter.h"
 #include "filter.h"
 
-static int lua_config_program_filter(lua_State* state)
+static int lua_config_filter_with_handle(lua_State* state, NVHandle handle)
 {
    const char* regexp = lua_tostring(state, 1);
-   FilterExprNode* expr = filter_re_new(LM_V_PROGRAM);
+   FilterExprNode* expr = filter_re_new(handle);
    filter_re_set_regexp(expr, regexp);
    lua_pushlightuserdata(state, expr);
    return 1;
+}
+
+static int lua_config_program_filter(lua_State* state)
+{
+   return lua_config_filter_with_handle(state, LM_V_PROGRAM);
+}
+
+static int lua_config_message_filter(lua_State* state)
+{
+   return lua_config_filter_with_handle(state, LM_V_MESSAGE);
+}
+
+static int lua_config_host_filter(lua_State* state)
+{
+   return lua_config_filter_with_handle(state, LM_V_HOST);
 }
 
 static int lua_config_filter_anonym(lua_State* state)
@@ -58,4 +73,6 @@ void cfg_lua_register_filter(lua_State *state)
 {
    lua_register(state, "Filter", lua_config_filter);
    lua_register(state, "ProgramFilter", lua_config_program_filter);
+   lua_register(state, "HostFilter", lua_config_host_filter);
+   lua_register(state, "MessageFilter", lua_config_message_filter);
 }

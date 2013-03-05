@@ -8,6 +8,7 @@
 #define LUA_SOURCE_DRIVER_TYPE "SyslogNG.SourceDriver"
 #define LUA_DESTINATION_DRIVER_TYPE "SyslogNG.DestinationDriver"
 #define LUA_LOG_EXPR_TYPE "SyslogNG.LogExpr"
+#define LUA_LOG_FORK_TYPE "SyslogNG.LogFork"
 
 typedef void (*cfg_lua_register_func)(GlobalConfig* conf);
 

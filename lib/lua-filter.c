@@ -16,7 +16,7 @@ static int lua_config_filter_anonym(lua_State* state)
    FilterExprNode* filter = lua_topointer(state, 1);
    LogExprNode* content = log_expr_node_new_pipe(log_filter_pipe_new(filter), NULL);
    LogExprNode* rule = log_expr_node_new_filter(NULL, content, NULL);
-   lua_pushlightuserdata(state, rule);
+   lua_create_userdata_from_pointer(state, rule, LUA_LOG_EXPR_TYPE);
    return 1;
 }
 
@@ -24,7 +24,7 @@ static int lua_config_filter_reference(lua_State* state)
 {
    const char* name = g_strdup(lua_tostring(state, 1));
    LogExprNode* rule = log_expr_node_new_filter_reference(name, NULL);
-   lua_pushlightuserdata(state, rule);
+   lua_create_userdata_from_pointer(state, rule, LUA_LOG_EXPR_TYPE);
    return 1;
 }
 

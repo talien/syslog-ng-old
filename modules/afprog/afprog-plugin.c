@@ -23,6 +23,7 @@
 
 #include "cfg-parser.h"
 #include "plugin.h"
+#include "afprog-lua.h"
 
 extern CfgParser afprog_parser;
 
@@ -55,4 +56,5 @@ const ModuleInfo module_info =
   .core_revision = SOURCE_REVISION,
   .plugins = afprog_plugins,
   .plugins_len = G_N_ELEMENTS(afprog_plugins),
+  .lua_reg_func = afprog_register_lua_config,
 };

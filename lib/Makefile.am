@@ -63,6 +63,7 @@ pkginclude_HEADERS = 		\
 	lua-filter.h		\
     lua-option-parser.h \
     lua-options.h   \
+    aflua-dest.h    \
 	mainloop.h		\
 	memtrace.h		\
 	messages.h		\
@@ -149,6 +150,7 @@ libsyslog_ng_la_SOURCES = \
 	lua-filter.c		\
     lua-option-parser.c \
     lua-options.c   \
+    aflua-dest.c    \
 	mainloop.c		\
 	memtrace.c		\
 	messages.c		\

@@ -9,6 +9,7 @@
 #include "afinter.h"
 #include "lua-option-parser.h"
 #include "lua-options.h"
+#include "aflua-dest.h"
 
 #define LUA_C_CALL(name) static int name(lua_State* state)
 
@@ -195,6 +196,7 @@ LogExprNode* lua_parse_expr_array(lua_State* state, int* flags)
 {
    LogExprNode *content = NULL, *item = NULL, *forks = NULL;
    int log_flags = 0;
+   //TODO: check type of parameter, must be table!
    lua_pushnil(state);
    while(lua_next(state, -2)) 
    { 
@@ -281,6 +283,7 @@ void lua_config_register(lua_State* state, GlobalConfig* conf)
    lua_register(state, "EmbeddedLog", lua_config_embedded_log);
    lua_register(state, "Internal", lua_config_internal);
    lua_register(state, "Options", lua_config_global_options);
+   aflua_register_lua_dest(state);
    lua_register_type(state, LUA_SOURCE_DRIVER_TYPE);
    lua_register_type(state, LUA_DESTINATION_DRIVER_TYPE);
    lua_register_type(state, LUA_LOG_EXPR_TYPE);

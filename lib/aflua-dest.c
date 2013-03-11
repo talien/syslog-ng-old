@@ -82,7 +82,7 @@ GString* aflua_get_function_bytecode_from_name(lua_State* state, char* lua_func_
    lua_getglobal(state, lua_func_name);
    if (!lua_isfunction(state, -1))
    {
-      msg_error("Function not found!", evt_tag_str("func",lua_func_name, NULL);
+      msg_error("Function not found!", evt_tag_str("func",lua_func_name), NULL);
       return NULL;
    }
    return aflua_get_function_bytecode_from_stack(state, -1);

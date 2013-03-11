@@ -125,9 +125,44 @@ void lua_option_parser_writer_option_set_ts_format(lua_State* state, void* data)
    options->template_options.ts_format = cfg_ts_format_value(ts_format);
 }
 
+void lua_options_writer_parse_flags(lua_State* state, void* data)
+{
+   LogWriterOptions* options = (LogWriterOptions*) data;
+   const char* flag;
+   int result = 0;
+   if (!lua_istable(state, -1))
+   {
+      msg_error("Flags parameter is not an array!", NULL);
+      return;
+   }
+   lua_pushnil(state);
+   while (lua_next(state, -2))
+   {
+      flag = lua_tostring(state, -1);
+      result = result | log_writer_options_lookup_flag(flag);
+      lua_pop(state, 1);
+   }
+   options->options = result;
+}
+static void lua_options_writer_options_set_mark(lua_State* state, void* data)
+{
+   LogWriterOptions* options = (LogWriterOptions*) data;
+   char* mark_mode_name = lua_tostring(state, -1);
+   int mark_mode = cfg_lookup_mark_mode(mark_mode_name);
+   if (mark_mode != -1)
+   {
+      log_writer_options_set_mark_mode(options, mark_mode_name);
+   }
+   else
+   {
+      msg_info("WARNING, illegal destination writer mark mode", NULL);
+   }
+}
+
+
 void lua_option_parser_register_writer_options(LuaOptionParser* parser, LogWriterOptions* options)
 {
-   //TODO: flags
+   lua_option_parser_add_func(parser, "flags", options, lua_options_writer_parse_flags);
    lua_option_parser_add(parser, "flush_lines", LUA_PARSE_TYPE_INT, &options->flush_lines);
    lua_option_parser_add(parser, "flush_timeout", LUA_PARSE_TYPE_INT, &options->flush_timeout);
    lua_option_parser_add(parser, "suppress", LUA_PARSE_TYPE_INT, &options->suppress);
@@ -138,7 +173,13 @@ void lua_option_parser_register_writer_options(LuaOptionParser* parser, LogWrite
    lua_option_parser_add(parser, "frac_digits", LUA_PARSE_TYPE_INT, &options->template_options.frac_digits);
    lua_option_parser_add(parser, "pad_size", LUA_PARSE_TYPE_INT, &options->padding);
    lua_option_parser_add(parser, "mark_freq", LUA_PARSE_TYPE_INT, &options->mark_freq);
-   //TODO: mark_mode
+   lua_option_parser_add_func(parser, "mark_mode", options, lua_options_writer_options_set_mark);
+}
+
+void lua_option_parser_register_destination_options(LuaOptionParser* parser, LogDestDriver* driver)
+{
+   lua_option_parser_add(parser, "log_fifo_size", LUA_PARSE_TYPE_INT, &driver->log_fifo_size);
+   lua_option_parser_add(parser, "throttle", LUA_PARSE_TYPE_INT, &driver->throttle);
 }
 
 static void lua_config_global_option_set_mark(lua_State* state, void* data)

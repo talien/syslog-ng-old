@@ -102,6 +102,45 @@ int lua_parse_reader_options(lua_State* state, LogReaderOptions* s)
    return 0;
 }
 
+void lua_option_parser_writer_option_set_template_escape(lua_State* state, void* data)
+{
+   LogWriterOptions* options = (LogWriterOptions*) data;
+   int escape_flag = lua_toboolean(state, 1);
+   log_writer_options_set_template_escape(options, escape_flag);
+}
+
+void lua_option_parser_writer_option_set_template(lua_State* state, void* data)
+{
+   LogWriterOptions* options = (LogWriterOptions*) data;
+   GlobalConfig* cfg = lua_get_config(state);
+   const char* template_string = lua_tostring(state, 1);
+   GError *error = NULL;
+   options->template = cfg_tree_check_inline_template(&cfg->tree, template_string , &error);
+}
+
+void lua_option_parser_writer_option_set_ts_format(lua_State* state, void* data)
+{
+   LogWriterOptions* options = (LogWriterOptions*) data;
+   char* ts_format = lua_tostring(state, 1);
+   options->template_options.ts_format = cfg_ts_format_value(ts_format);
+}
+
+void lua_option_parser_register_writer_options(LuaOptionParser* parser, LogWriterOptions* options)
+{
+   //TODO: flags
+   lua_option_parser_add(parser, "flush_lines", LUA_PARSE_TYPE_INT, &options->flush_lines);
+   lua_option_parser_add(parser, "flush_timeout", LUA_PARSE_TYPE_INT, &options->flush_timeout);
+   lua_option_parser_add(parser, "suppress", LUA_PARSE_TYPE_INT, &options->suppress);
+   lua_option_parser_add_func(parser, "template", options, lua_option_parser_writer_option_set_template);
+   lua_option_parser_add_func(parser, "template_escape", options, lua_option_parser_writer_option_set_template);
+   lua_option_parser_add(parser, "time_zone", LUA_PARSE_TYPE_STR, &options->template_options.time_zone[LTZ_SEND]);
+   lua_option_parser_add_func(parser, "ts_format", options, lua_option_parser_writer_option_set_ts_format);
+   lua_option_parser_add(parser, "frac_digits", LUA_PARSE_TYPE_INT, &options->template_options.frac_digits);
+   lua_option_parser_add(parser, "pad_size", LUA_PARSE_TYPE_INT, &options->padding);
+   lua_option_parser_add(parser, "mark_freq", LUA_PARSE_TYPE_INT, &options->mark_freq);
+   //TODO: mark_mode
+}
+
 static void lua_config_global_option_set_mark(lua_State* state, void* data)
 {
    GlobalConfig* config = (GlobalConfig*) data;

@@ -224,6 +224,25 @@ static int afsocket_udp_destination(lua_State* state)
    return 1;
 }
 
+void afsocket_parse_tcp_destination_options(lua_State* state, LogDriver* d)
+{
+   LuaOptionParser* parser = lua_option_parser_new();
+   afsocket_register_inet_dest_options(parser, d);
+   // TODO: TLS
+   lua_option_parser_parse(parser, state);
+   lua_option_parser_destroy(parser);
+   return 0;
+}
+
+static int afsocket_tcp_destination(lua_State* state)
+{
+   const char* name = lua_tostring(state, 1);
+   LogDriver* d = afinet_dd_new(AF_INET, SOCK_STREAM, name);
+   afsocket_parse_tcp_destination_options(state, d);
+   lua_create_userdata_from_pointer(state, d, LUA_DESTINATION_DRIVER_TYPE);
+   return 1;
+}
+
 void afsocket_register_lua_config(GlobalConfig* cfg)
 {
    lua_State* state = cfg->lua_cfg_state;
@@ -233,4 +252,5 @@ void afsocket_register_lua_config(GlobalConfig* cfg)
    lua_register(state, "TcpSource", afsocket_tcp_source); 
    lua_register(state, "UdpSource", afsocket_udp_source); 
    lua_register(state, "UdpDestination", afsocket_udp_destination); 
+   lua_register(state, "TcpDestination", afsocket_tcp_destination); 
 }

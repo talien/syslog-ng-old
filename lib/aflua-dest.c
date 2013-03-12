@@ -111,6 +111,11 @@ static int
 aflua_dest_driver(lua_State* state)
 {
    GString* byte_code;
+   if (lua_gettop(state) < 2)
+   {
+      msg_error("Lua destination driver needs two parameters!", NULL);
+      return 0;
+   }
    if (lua_isstring(state, 1))
    {
      const char* name = g_strdup(lua_tostring(state, 1));

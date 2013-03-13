@@ -22,6 +22,19 @@ aflua_dd_init(LogPipe *s)
   GlobalConfig* cfg = log_pipe_get_config(s);
   self->template = log_template_new(cfg, "luatemp");
   log_template_compile(self->template, self->template_string,&error);
+
+  if (self->is_init_function_valid)
+  {
+     msg_error("Calling lua destination init function", NULL);
+     lua_getglobal(self->state, "lua_init_func");
+     if (lua_isnil(self->state, -1))
+     {
+       msg_error("Error happened during calling Lua destination initializing function2!", NULL);
+     }
+     int ret = lua_pcall(self->state, 0, 0, 0);
+     if (ret)
+       msg_error("Error happened during calling Lua destination initializing function!", NULL);
+  }  
   if (!log_dest_driver_init_method(s))
     return FALSE;
   return TRUE;
@@ -88,16 +101,32 @@ GString* aflua_get_function_bytecode_from_name(lua_State* state, char* lua_func_
    return aflua_get_function_bytecode_from_stack(state, -1);
 }
 
+void
+aflua_load_bytecode_into_state(lua_State* state, char* name, GString* bytecode)
+{
+   lua_reader_state = 1;
+   lua_load(state, lua_chunk_reader, bytecode, name);
+   lua_setglobal(state, name);
+}
+
 LogDriver* 
-aflua_dd_new(lua_State* state, GString* func_byte_code, char* template_string)
+aflua_dd_new(lua_State* state, GString* func_byte_code, GString* init_bytecode, char* template_string)
 {
    AFLuaDestDriver *self = g_new0(AFLuaDestDriver, 1);
-   lua_reader_state = 1;
    self->state = lua_open();
    luaL_openlibs(self->state);
-   lua_load(self->state, lua_chunk_reader, func_byte_code, "lua_dest_func");
-   lua_setglobal(self->state, "lua_dest_func");
+
+   aflua_load_bytecode_into_state(self->state, "lua_dest_func", func_byte_code);
    g_string_free(func_byte_code, TRUE);
+
+   if (init_bytecode)
+   {
+     msg_debug("Loading lua dest init func bytecode", NULL);
+     aflua_load_bytecode_into_state(self->state, "lua_init_func", init_bytecode);
+     g_string_free(init_bytecode, TRUE);
+     self->is_init_function_valid = TRUE;
+   }
+ 
    self->template_string = template_string;
    log_dest_driver_init_instance(&self->super);
    self->super.super.super.init = aflua_dd_init;
@@ -107,27 +136,39 @@ aflua_dd_new(lua_State* state, GString* func_byte_code, char* template_string)
    return &self->super.super;
 }
 
+static GString* aflua_get_bytecode_from_parameter(lua_State* state, int index)
+{
+   GString* byte_code = NULL;
+   if (lua_isstring(state, index))
+   {
+     const char* name = g_strdup(lua_tostring(state, index));
+     byte_code = aflua_get_function_bytecode_from_name(state, name);
+   }
+   
+   if (lua_isfunction(state, index))   
+   {
+     byte_code = aflua_get_function_bytecode_from_stack(state, index);
+   }
+   return byte_code;
+}
+
 static int
 aflua_dest_driver(lua_State* state)
 {
-   GString* byte_code;
+   GString* byte_code, *init_bytecode = NULL;
    if (lua_gettop(state) < 2)
    {
       msg_error("Lua destination driver needs two parameters!", NULL);
       return 0;
    }
-   if (lua_isstring(state, 1))
-   {
-     const char* name = g_strdup(lua_tostring(state, 1));
-     byte_code = aflua_get_function_bytecode_from_name(state, name);
-   }
-   
-   if (lua_isfunction(state, 1))   
-   {
-     byte_code = aflua_get_function_bytecode_from_stack(state, 1);
-   }
+   byte_code = aflua_get_bytecode_from_parameter(state, 1);
    const char* template_string = g_strdup(lua_tostring(state, 2));
-   LogDriver* d = aflua_dd_new(state, byte_code, template_string);
+   if (lua_gettop(state) == 3)
+   {
+     msg_debug("Initializing Lua destination init function", NULL);
+     init_bytecode = aflua_get_bytecode_from_parameter(state, 3);
+   }
+   LogDriver* d = aflua_dd_new(state, byte_code, init_bytecode, template_string);
    lua_create_userdata_from_pointer(state, d, LUA_DESTINATION_DRIVER_TYPE);
    return 1;
 }

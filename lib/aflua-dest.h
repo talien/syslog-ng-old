@@ -11,7 +11,7 @@ typedef struct _AFLuaDestDriver
   lua_State* state;
   char* template_string;
   LogTemplate* template;
-  GString* bytecode;
+  gboolean is_init_function_valid;
 } AFLuaDestDriver;
 
 void aflua_register_lua_dest(lua_State* state);

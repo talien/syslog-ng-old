@@ -9,6 +9,10 @@
 #include "afinet-source.h"
 #include "afinet-dest.h"
 
+#if BUILD_WITH_SSL
+#include "tlscontext.h"
+#endif
+
 typedef void (*register_func)(LuaOptionParser* parser, LogDriver* d);
 
 static void afsocket_register_and_parse_options(lua_State* state, LogDriver* d, register_func reg_func)
@@ -146,10 +150,50 @@ static int afsocket_udp_source(lua_State* state)
    return 1;
 }
 
+#if BUILD_WITH_SSL
+
+static void afsocket_tls_set_peer_verify(lua_State* state, void* data)
+{
+   TLSContext* context = (TLSContext*) data;
+   char* verify_mode = lua_tostring(state, -1);
+   context->verify_mode = tls_lookup_verify_mode(verify_mode);
+}
+
+static void afsocket_register_tls_options(LuaOptionParser* parser, TLSContext* context)
+{
+   lua_option_parser_add_func(parser, "peer_verify", context, afsocket_tls_set_peer_verify);
+   lua_option_parser_add(parser, "key_file", LUA_PARSE_TYPE_STR, &context->key_file);
+   lua_option_parser_add(parser, "cert_file", LUA_PARSE_TYPE_STR, &context->cert_file);
+   lua_option_parser_add(parser, "ca_dir", LUA_PARSE_TYPE_STR, &context->ca_dir);
+   lua_option_parser_add(parser, "crl_dir", LUA_PARSE_TYPE_STR, &context->crl_dir);
+   //trusted_keys
+   //trusted_dn
+   lua_option_parser_add(parser, "cipher_suite", LUA_PARSE_TYPE_STR, &context->cipher_suite);
+
+}
+
+static void afsocket_source_tls_options(lua_State* state, LogDriver* d)
+{
+   TLSContext* context = tls_context_new(TM_SERVER);
+   LuaOptionParser* parser = lua_option_parser_new();
+   afsocket_register_tls_options(parser, context);
+   lua_option_parser_parse(parser, state);
+   lua_option_parser_destroy(parser);
+   afsocket_sd_set_tls_context(d, context);
+}
+#endif
+
+static void afsocket_register_tls_source_options(LuaOptionParser* parser, LogDriver* d)
+{
+   #if BUILD_WITH_SSL
+   lua_option_parser_add_func(parser, "tls", d, afsocket_source_tls_options);
+   #endif
+}
+
 static void afsocket_register_tcp_source_options(LuaOptionParser* parser, LogDriver* d)
 {
    afsocket_register_inet_source_options(parser, d);
-   //TODO: TLS
+   afsocket_register_tls_source_options(parser, d);
    afsocket_register_source_stream_params(parser, d);
 }
 

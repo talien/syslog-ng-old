@@ -159,6 +159,38 @@ static void afsocket_tls_set_peer_verify(lua_State* state, void* data)
    context->verify_mode = tls_lookup_verify_mode(verify_mode);
 }
 
+static GList* afsocket_parse_array_into_glist(lua_State* state)
+{
+   GList* list = NULL;
+   lua_pushnil(state);
+   while(lua_next(state, -2)) {
+      if(lua_isstring(state, -1))
+      {
+          g_list_prepend(list, g_strdup(lua_tostring(state, -1)));
+      }
+      else
+      {
+         msg_error("Non-string type passed to string list", NULL);
+         //TODO: fatal or non-fatal error?
+      }
+      lua_pop(state, 1);
+   }
+   list = g_list_reverse(list);
+   return list;
+}
+
+static void afsocket_tls_set_trusted_keys(lua_State* state, void* data)
+{
+   TLSContext* context = (TLSContext*) data;
+   tls_session_set_trusted_fingerprints(context, afsocket_parse_array_into_glist(state));
+}
+
+static void afsocket_tls_set_trusted_dn(lua_State* state, void* data)
+{
+   TLSContext* context = (TLSContext*) data;
+   tls_session_set_trusted_dn(context, afsocket_parse_array_into_glist(state));
+}
+
 static void afsocket_register_tls_options(LuaOptionParser* parser, TLSContext* context)
 {
    lua_option_parser_add_func(parser, "peer_verify", context, afsocket_tls_set_peer_verify);
@@ -166,20 +198,31 @@ static void afsocket_register_tls_options(LuaOptionParser* parser, TLSContext* c
    lua_option_parser_add(parser, "cert_file", LUA_PARSE_TYPE_STR, &context->cert_file);
    lua_option_parser_add(parser, "ca_dir", LUA_PARSE_TYPE_STR, &context->ca_dir);
    lua_option_parser_add(parser, "crl_dir", LUA_PARSE_TYPE_STR, &context->crl_dir);
-   //trusted_keys
-   //trusted_dn
+   lua_option_parser_add_func(parser, "trusted_keys", context, afsocket_tls_set_trusted_keys);
+   lua_option_parser_add_func(parser, "trusted_dn", context, afsocket_tls_set_trusted_dn);
    lua_option_parser_add(parser, "cipher_suite", LUA_PARSE_TYPE_STR, &context->cipher_suite);
-
 }
 
-static void afsocket_source_tls_options(lua_State* state, LogDriver* d)
+typedef void (*tls_set_context_func)(LogDriver* d, TLSContext* context);
+
+static void afsocket_tls_options(lua_State* state, LogDriver* d, int tls_type, tls_set_context_func func)
 {
-   TLSContext* context = tls_context_new(TM_SERVER);
+   TLSContext* context = tls_context_new(tls_type);
    LuaOptionParser* parser = lua_option_parser_new();
    afsocket_register_tls_options(parser, context);
    lua_option_parser_parse(parser, state);
    lua_option_parser_destroy(parser);
-   afsocket_sd_set_tls_context(d, context);
+   func(d, context);
+}
+
+static void afsocket_source_tls_options(lua_State* state, LogDriver* d)
+{
+   afsocket_tls_options(state, d, TM_SERVER, afsocket_sd_set_tls_context);
+}
+
+static void afsocket_destination_tls_options(lua_State* state, LogDriver* d)
+{
+   afsocket_tls_options(state, d, TM_CLIENT, afsocket_dd_set_tls_context);
 }
 #endif
 
@@ -187,6 +230,13 @@ static void afsocket_register_tls_source_options(LuaOptionParser* parser, LogDri
 {
    #if BUILD_WITH_SSL
    lua_option_parser_add_func(parser, "tls", d, afsocket_source_tls_options);
+   #endif
+}
+
+static void afsocket_register_tls_destination_options(LuaOptionParser* parser, LogDriver* d)
+{
+   #if BUILD_WITH_SSL
+   lua_option_parser_add_func(parser, "tls", d, afsocket_destination_tls_options);
    #endif
 }
 
@@ -275,7 +325,7 @@ static int afsocket_udp_destination(lua_State* state)
 void afsocket_register_tcp_destination_options(LuaOptionParser* parser, LogDriver* d)
 {
    afsocket_register_inet_dest_options(parser, d);
-   //TODO: TLS
+   afsocket_register_tls_destination_options(parser, d);
 }
 
 static int afsocket_tcp_destination(lua_State* state)
@@ -297,7 +347,7 @@ static void afsocket_source_transport_option_set_transport(lua_State* state, voi
 static void afsocket_register_source_transport_options(LuaOptionParser* parser, LogDriver* driver)
 {
    lua_option_parser_add_func(parser, "transport", driver, afsocket_source_transport_option_set_transport);
-   //TODO: TLS
+   afsocket_register_tls_source_options(parser, driver);
 }
 
 static void afsocket_register_syslog_source_options(LuaOptionParser* parser, LogDriver* driver)
@@ -325,7 +375,7 @@ static void afsocket_dest_transport_option_set_transport(lua_State* state, void*
 static void afsocket_register_dest_transport_options(LuaOptionParser* parser, LogDriver* driver)
 {
    lua_option_parser_add_func(parser, "transport", driver, afsocket_dest_transport_option_set_transport);
-   //TODO: TLS
+   afsocket_register_tls_destination_options(parser, driver);
 }
 
 static void afsocket_register_syslog_destination_options(LuaOptionParser* parser, LogDriver* driver)

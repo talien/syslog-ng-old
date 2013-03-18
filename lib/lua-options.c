@@ -309,3 +309,31 @@ void lua_config_register_global_options(LuaOptionParser* parser, GlobalConfig* c
    lua_option_parser_add(parser, "send_time_zone", LUA_PARSE_TYPE_STR, &config->template_options.time_zone[LTZ_SEND]);
    lua_option_parser_add(parser, "local_time_zone", LUA_PARSE_TYPE_STR, &config->template_options.time_zone[LTZ_LOCAL]);
 }
+
+void lua_config_file_perm_options_set_owner(lua_State* state, void* data)
+{
+   FilePermOptions* options = (FilePermOptions*) data;
+   char* owner = g_strdup(lua_tostring(state, -1));
+   file_perm_options_set_file_uid(options, owner);
+}
+
+void lua_config_file_perm_options_set_group(lua_State* state, void* data)
+{
+   FilePermOptions* options = (FilePermOptions*) data;
+   char* group = g_strdup(lua_tostring(state, -1));
+   file_perm_options_set_file_gid(options, group);
+}
+
+void lua_config_file_perm_options_set_perm(lua_State* state, void* data)
+{
+   FilePermOptions* options = (FilePermOptions*) data;
+   int perm = lua_tointeger(state, -1);
+   file_perm_options_set_file_perm(options, perm);
+}
+
+void lua_option_parser_register_file_perm_options(LuaOptionParser* parser, FilePermOptions* options)
+{
+   lua_option_parser_add_func(parser, "owner", options, lua_config_file_perm_options_set_owner);
+   lua_option_parser_add_func(parser, "group", options, lua_config_file_perm_options_set_group);
+   lua_option_parser_add_func(parser, "perm", options, lua_config_file_perm_options_set_perm);
+}

@@ -49,7 +49,7 @@ static void afsocket_register_socket_params(LuaOptionParser* parser, SocketOptio
 
 static void afsocket_register_unix_source_options(LuaOptionParser* parser, LogDriver* driver)
 {
-  //TODO: file perm options
+  lua_option_parser_register_file_perm_options(parser, &((AFUnixSourceDriver *) driver)->file_perm_options);
   afsocket_register_socket_params(parser, &((AFUnixSourceDriver *) driver)->sock_options);
   lua_option_parser_register_reader_options(parser, &((AFSocketSourceDriver *) driver)->reader_options);
   afsocket_register_source_stream_params(parser, driver);
@@ -80,7 +80,7 @@ static void afsocket_register_unix_destination_options(LuaOptionParser* parser, 
    lua_option_parser_register_destination_options(parser, driver);
    lua_option_parser_register_writer_options(parser, &((AFSocketDestDriver *) driver)->writer_options);
    afsocket_register_socket_params(parser, &((AFUnixDestDriver *) driver)->sock_options);
-   afsocket_register_afsocket_dest_option(parser, driver);
+   afsocket_register_afsocket_dest_options(parser, driver);
 }
 
 static int afsocket_unix_destination(lua_State* state, int destination_type)
@@ -196,7 +196,7 @@ void afsocket_socket_dest_option_set_keepalive(lua_State* state, void* data)
    afsocket_dd_set_keep_alive(d, keepalive);
 }
 
-void afsocket_register_afsocket_dest_option(LuaOptionParser* parser, LogDriver* d)
+void afsocket_register_afsocket_dest_options(LuaOptionParser* parser, LogDriver* d)
 {
    lua_option_parser_add_func(parser, "keep_alive", d, afsocket_socket_dest_option_set_keepalive);
 }
@@ -210,7 +210,7 @@ void afsocket_register_inet_dest_options(LuaOptionParser* parser, LogDriver* d)
    afsocket_register_inet_socket_options(parser, &((AFInetDestDriver *) d)->sock_options.super);
    lua_option_parser_register_writer_options(parser, &((AFSocketDestDriver *) d)->writer_options);
    lua_option_parser_register_destination_options(parser, d);
-   afsocket_register_afsocket_dest_option(parser, d);
+   afsocket_register_afsocket_dest_options(parser, d);
 }
 
 void afsocket_register_udp_destination_options(LuaOptionParser* parser, LogDriver* d)

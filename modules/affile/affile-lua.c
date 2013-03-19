@@ -34,7 +34,6 @@ int affile_lua_file_sd(lua_State* state)
    const char* name = g_strdup(lua_tostring(state, 1));
    LogDriver *s = affile_sd_new(name, 0);
    affile_lua_parse_file_source_options(state, (AFFileSourceDriver*)s);
-   ((AFFileSourceDriver*)s)->reader_options.follow_freq = ((AFFileSourceDriver*)s)->reader_options.follow_freq * 1000;
    lua_create_userdata_from_pointer(state, s, LUA_SOURCE_DRIVER_TYPE);
    return 1;
 }

@@ -51,7 +51,7 @@ static int lua_config_filter_named(lua_State* state)
    LogExprNode* content = log_expr_node_new_pipe(log_filter_pipe_new(filter), NULL);
    LogExprNode* rule = log_expr_node_new_filter(name, content, NULL);
    self = lua_get_config(state);
-   cfg_tree_add_object(&self->tree, filter);
+   cfg_tree_add_object(&self->tree, rule);
    return 0; 
 }
 

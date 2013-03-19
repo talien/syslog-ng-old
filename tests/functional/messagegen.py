@@ -26,7 +26,7 @@ class MessageSender(object):
         need_to_flush = True
 
 
-        print_user("generating %d messages using transport %s" % (self.repeat, str(self)))
+        print_user("generating %d messages using transport %s, session=%d" % (self.repeat, str(self),session_counter))
 
         self.initSender()
         expected = []

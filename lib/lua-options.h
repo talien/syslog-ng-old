@@ -18,4 +18,8 @@ void lua_option_parser_register_source_options(LuaOptionParser* parser, LogSourc
 void lua_option_parser_register_destination_options(LuaOptionParser* parser, LogDestDriver* options);
 void lua_option_parser_register_file_perm_options(LuaOptionParser* parser, FilePermOptions* options); 
 void lua_config_register_global_options(LuaOptionParser* parser, GlobalConfig* config);
+typedef void (*register_func)(LuaOptionParser* parser, LogDriver* d);
+
+void lua_config_register_and_parse_options(lua_State* state, LogDriver* d, register_func reg_func);
+
 #endif

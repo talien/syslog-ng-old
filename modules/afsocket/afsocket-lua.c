@@ -13,16 +13,6 @@
 #include "tlscontext.h"
 #endif
 
-typedef void (*register_func)(LuaOptionParser* parser, LogDriver* d);
-
-static void afsocket_register_and_parse_options(lua_State* state, LogDriver* d, register_func reg_func)
-{
-   LuaOptionParser* parser = lua_option_parser_new();
-   reg_func(parser, d);
-   lua_option_parser_parse(parser, state);
-   lua_option_parser_destroy(parser);
-}
-
 static void afsocket_stream_param_set_keepalive(lua_State* state, void* data)
 {
    LogDriver* driver = (LogDriver*) data;
@@ -64,7 +54,7 @@ static int afsocket_unix_source(lua_State* state, int source_type)
 {
    const char* name = lua_tostring(state, 1);
    LogDriver* d = afunix_sd_new(source_type, name);
-   afsocket_register_and_parse_options(state, d, afsocket_register_unix_source_options);
+   lua_config_register_and_parse_options(state, d, afsocket_register_unix_source_options);
    lua_create_userdata_from_pointer(state, d, LUA_SOURCE_DRIVER_TYPE);
    return 1;
 }
@@ -91,7 +81,7 @@ static int afsocket_unix_destination(lua_State* state, int destination_type)
 {
    const char* name = lua_tostring(state, 1);
    LogDriver* d = afunix_dd_new(destination_type, name);
-   afsocket_register_and_parse_options(state, d, afsocket_register_unix_destination_options);
+   lua_config_register_and_parse_options(state, d, afsocket_register_unix_destination_options);
    lua_create_userdata_from_pointer(state, d, LUA_DESTINATION_DRIVER_TYPE);
    return 1;
 }
@@ -145,7 +135,7 @@ void afsocket_register_inet_source_options(LuaOptionParser* parser, LogDriver* d
 static int afsocket_udp_source(lua_State* state)
 {
    LogDriver* d = afinet_sd_new(AF_INET, SOCK_DGRAM);
-   afsocket_register_and_parse_options(state, d, afsocket_register_inet_source_options);
+   lua_config_register_and_parse_options(state, d, afsocket_register_inet_source_options);
    lua_create_userdata_from_pointer(state, d, LUA_SOURCE_DRIVER_TYPE);
    return 1;
 }
@@ -250,7 +240,7 @@ static void afsocket_register_tcp_source_options(LuaOptionParser* parser, LogDri
 static int afsocket_tcp_source(lua_State* state)
 {
    LogDriver* d = afinet_sd_new(AF_INET, SOCK_STREAM);
-   afsocket_register_and_parse_options(state, d, afsocket_register_tcp_source_options);
+   lua_config_register_and_parse_options(state, d, afsocket_register_tcp_source_options);
    lua_create_userdata_from_pointer(state, d, LUA_SOURCE_DRIVER_TYPE);
    return 1;
 }
@@ -317,7 +307,7 @@ static int afsocket_udp_destination(lua_State* state)
 {
    const char* name = lua_tostring(state, 1);
    LogDriver* d = afinet_dd_new(AF_INET, SOCK_DGRAM, name);
-   afsocket_register_and_parse_options(state, d, afsocket_register_udp_destination_options);
+   lua_config_register_and_parse_options(state, d, afsocket_register_udp_destination_options);
    lua_create_userdata_from_pointer(state, d, LUA_DESTINATION_DRIVER_TYPE);
    return 1;
 }
@@ -332,7 +322,7 @@ static int afsocket_tcp_destination(lua_State* state)
 {
    const char* name = lua_tostring(state, 1);
    LogDriver* d = afinet_dd_new(AF_INET, SOCK_STREAM, name);
-   afsocket_register_and_parse_options(state, d, afsocket_register_tcp_destination_options);
+   lua_config_register_and_parse_options(state, d, afsocket_register_tcp_destination_options);
    lua_create_userdata_from_pointer(state, d, LUA_DESTINATION_DRIVER_TYPE);
    return 1;
 }
@@ -360,7 +350,7 @@ static void afsocket_register_syslog_source_options(LuaOptionParser* parser, Log
 static int afsocket_syslog_source(lua_State* state)
 {
    LogDriver* d = afsyslog_sd_new();
-   afsocket_register_and_parse_options(state, d, afsocket_register_syslog_source_options);
+   lua_config_register_and_parse_options(state, d, afsocket_register_syslog_source_options);
    lua_create_userdata_from_pointer(state, d, LUA_SOURCE_DRIVER_TYPE);
    return 1;
 }
@@ -388,7 +378,7 @@ static int afsocket_syslog_destination(lua_State* state)
 {
    const char* host = lua_tostring(state, 1);
    LogDriver* d = afsyslog_dd_new(host);
-   afsocket_register_and_parse_options(state, d, afsocket_register_syslog_destination_options);
+   lua_config_register_and_parse_options(state, d, afsocket_register_syslog_destination_options);
    lua_create_userdata_from_pointer(state, d, LUA_DESTINATION_DRIVER_TYPE);
    return 1;
 }
@@ -404,7 +394,7 @@ static void afsocket_register_network_source_options(LuaOptionParser* parser, Lo
 static int afsocket_network_source(lua_State* state)
 {
    LogDriver* d = afnetwork_sd_new();
-   afsocket_register_and_parse_options(state, d, afsocket_register_network_source_options);
+   lua_config_register_and_parse_options(state, d, afsocket_register_network_source_options);
    lua_create_userdata_from_pointer(state, d, LUA_SOURCE_DRIVER_TYPE);
    return 1;
 }
@@ -419,7 +409,7 @@ static void afsocket_register_network_destination_options(LuaOptionParser* parse
 static int afsocket_network_destination(lua_State* state)
 {
    LogDriver* d = afnetwork_sd_new();
-   afsocket_register_and_parse_options(state, d, afsocket_register_network_destination_options);
+   lua_config_register_and_parse_options(state, d, afsocket_register_network_destination_options);
    lua_create_userdata_from_pointer(state, d, LUA_DESTINATION_DRIVER_TYPE);
    return 1;
 }

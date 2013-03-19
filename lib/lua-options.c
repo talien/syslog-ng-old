@@ -337,3 +337,12 @@ void lua_option_parser_register_file_perm_options(LuaOptionParser* parser, FileP
    lua_option_parser_add_func(parser, "group", options, lua_config_file_perm_options_set_group);
    lua_option_parser_add_func(parser, "perm", options, lua_config_file_perm_options_set_perm);
 }
+
+void lua_config_register_and_parse_options(lua_State* state, LogDriver* d, register_func reg_func)
+{
+   LuaOptionParser* parser = lua_option_parser_new();
+   reg_func(parser, d);
+   lua_option_parser_parse(parser, state);
+   lua_option_parser_destroy(parser);
+}
+

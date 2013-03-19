@@ -15,7 +15,7 @@ int affile_lua_file_dd(lua_State* state)
 
 int affile_lua_register_file_source_options(LuaOptionParser* parser, AFFileSourceDriver* sd)
 {
-   lua_option_parser_register_reader_options(parser, sd);
+   lua_option_parser_register_reader_options(parser, &sd->reader_options);
    lua_option_parser_add(parser, "follow_freq", LUA_PARSE_TYPE_INT, &sd->reader_options.follow_freq);
    lua_option_parser_add(parser, "pad_size", LUA_PARSE_TYPE_INT,&sd->pad_size);
 }
@@ -41,7 +41,7 @@ int affile_lua_file_sd(lua_State* state)
 
 int affile_lua_register_pipe_source_options(LuaOptionParser* parser, AFFileSourceDriver* sd)
 {
-   lua_option_parser_register_reader_options(parser, sd);
+   lua_option_parser_register_reader_options(parser, &sd->reader_options);
    lua_option_parser_add(parser, "pad_size", LUA_PARSE_TYPE_INT,&sd->pad_size);
    lua_option_parser_add(parser, "optional", LUA_PARSE_TYPE_BOOL, &((LogDriver*)sd)->optional);
 }

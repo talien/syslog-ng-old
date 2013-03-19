@@ -20,6 +20,10 @@ class SyslogNGTestCase(object):
             self.tearDown()
             print_end(test_case_name, success)
         except Exception, e:
+            try:
+                self.tearDown()
+            except:
+                pass
             print_end(test_case_name, False)
             print traceback.print_exc()
             return False

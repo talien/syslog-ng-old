@@ -393,6 +393,37 @@ static int afsocket_syslog_destination(lua_State* state)
    return 1;
 }
 
+static void afsocket_register_network_source_options(LuaOptionParser* parser, LogDriver* driver)
+{
+   afsocket_register_inet_source_options(parser, driver);
+   afsocket_register_source_stream_params(parser, driver);
+   afsocket_register_source_transport_options(parser, driver);
+   lua_option_parser_add(parser, "ip_proto", LUA_PARSE_TYPE_INT, &((AFSocketSourceDriver *)driver)->address_family);
+}
+
+static int afsocket_network_source(lua_State* state)
+{
+   LogDriver* d = afnetwork_sd_new();
+   afsocket_register_and_parse_options(state, d, afsocket_register_network_source_options);
+   lua_create_userdata_from_pointer(state, d, LUA_SOURCE_DRIVER_TYPE);
+   return 1;
+}
+
+static void afsocket_register_network_destination_options(LuaOptionParser* parser, LogDriver* driver)
+{
+   afsocket_register_inet_dest_options(parser, driver);
+   afsocket_register_dest_transport_options(parser, driver);
+   lua_option_parser_add(parser, "ip_proto", LUA_PARSE_TYPE_INT, &((AFSocketDestDriver *)driver)->address_family);
+}
+
+static int afsocket_network_destination(lua_State* state)
+{
+   LogDriver* d = afnetwork_sd_new();
+   afsocket_register_and_parse_options(state, d, afsocket_register_network_destination_options);
+   lua_create_userdata_from_pointer(state, d, LUA_DESTINATION_DRIVER_TYPE);
+   return 1;
+}
+
 void afsocket_register_lua_config(GlobalConfig* cfg)
 {
    lua_State* state = cfg->lua_cfg_state;
@@ -406,4 +437,6 @@ void afsocket_register_lua_config(GlobalConfig* cfg)
    lua_register(state, "TcpDestination", afsocket_tcp_destination); 
    lua_register(state, "SyslogSource", afsocket_syslog_source);
    lua_register(state, "SyslogDestination", afsocket_syslog_destination);
+   lua_register(state, "NetworkSource", afsocket_network_source);
+   lua_register(state, "NetworkDestination", afsocket_network_destination);
 }

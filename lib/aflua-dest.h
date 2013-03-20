@@ -15,4 +15,6 @@ typedef struct _AFLuaDestDriver
 } AFLuaDestDriver;
 
 void aflua_register_lua_dest(lua_State* state);
+GString* aflua_get_bytecode_from_parameter(lua_State* state, int index);
+void aflua_load_bytecode_into_state(lua_State* state, char* name, GString* bytecode);
 #endif

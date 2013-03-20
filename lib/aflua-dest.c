@@ -136,7 +136,7 @@ aflua_dd_new(lua_State* state, GString* func_byte_code, GString* init_bytecode, 
    return &self->super.super;
 }
 
-static GString* aflua_get_bytecode_from_parameter(lua_State* state, int index)
+GString* aflua_get_bytecode_from_parameter(lua_State* state, int index)
 {
    GString* byte_code = NULL;
    if (lua_isstring(state, index))

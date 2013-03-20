@@ -10,6 +10,7 @@
 #include "lua-option-parser.h"
 #include "lua-options.h"
 #include "aflua-dest.h"
+#include "aflua-source.h"
 
 #define LUA_C_CALL(name) static int name(lua_State* state)
 
@@ -284,6 +285,7 @@ void lua_config_register(lua_State* state, GlobalConfig* conf)
    lua_register(state, "Internal", lua_config_internal);
    lua_register(state, "Options", lua_config_global_options);
    aflua_register_lua_dest(state);
+   aflua_register_lua_source(state);
    lua_register_type(state, LUA_SOURCE_DRIVER_TYPE);
    lua_register_type(state, LUA_DESTINATION_DRIVER_TYPE);
    lua_register_type(state, LUA_LOG_EXPR_TYPE);

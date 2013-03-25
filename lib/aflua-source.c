@@ -2,6 +2,7 @@
 #include "logsource.h"
 #include "mainloop.h"
 #include "aflua-dest.h"
+#include "lua-msg.h"
 
 typedef struct _LuaReader
 {
@@ -28,8 +29,21 @@ static int lua_post(lua_State* state)
    }   
    self = lua_topointer(state, 1);
    LogPathOptions path_options = LOG_PATH_OPTIONS_INIT;
-   const char* msg = g_strdup(lua_tostring(state, 2));
-   LogMessage* lm = log_msg_new_internal(0, msg);
+   LogMessage* lm = NULL;
+   if (lua_isstring(state, 2))
+   {
+      const char* msg = g_strdup(lua_tostring(state, 2));
+      lm = log_msg_new_internal(0, msg);
+   }
+   else
+   {
+      lm = lua_msg_to_msg(state, 2);
+   }
+   if (!lm )
+   {
+      msg_error("lua_post: Message is null, not posting!", NULL);
+      return 0;
+   }
    log_msg_refcache_start_producer(lm);
    log_pipe_queue(&self->super.super, lm, &path_options);
    log_msg_refcache_stop();
@@ -88,6 +102,7 @@ LogPipe* lua_reader_new(GString* func, LogSourceOptions* options)
    self->state = lua_open();
    luaL_openlibs(self->state);
    lua_register(self->state, "post", lua_post);
+   lua_register_message(self->state);
    aflua_load_bytecode_into_state(self->state, "thread_func", func);
    return self;
 }

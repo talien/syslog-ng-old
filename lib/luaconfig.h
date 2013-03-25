@@ -16,5 +16,5 @@ int lua_config_load(GlobalConfig* conf, const char* filename);
 int lua_create_userdata_from_pointer(lua_State* state, void* data, const char* type);
 int lua_parse_source_options(lua_State* state,  LogSourceOptions* s);
 int lua_parse_reader_options(lua_State* state,  LogReaderOptions* s);
-
+void* lua_check_and_convert_userdata(lua_State* state, int index, const char* type);
 #endif

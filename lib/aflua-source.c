@@ -20,7 +20,13 @@ void aflua_sd_queue(LogPipe* pipe, LogMessage *msg, LogPathOptions *path_options
 
 static int lua_post(lua_State* state)
 {
-   LuaReader* self = lua_topointer(state, 1);
+   LuaReader* self = NULL;
+   if (!lua_islightuserdata(state, 1))
+   {
+      msg_error("lua_post: First parameter is not the parameter of the main source function!", NULL);
+      return 0;
+   }   
+   self = lua_topointer(state, 1);
    LogPathOptions path_options = LOG_PATH_OPTIONS_INIT;
    const char* msg = g_strdup(lua_tostring(state, 2));
    LogMessage* lm = log_msg_new_internal(0, msg);
@@ -30,21 +36,9 @@ static int lua_post(lua_State* state)
    return 0;
 }
 
-
 static void lua_reader_thread(void* data)
-{ 
-   
-   LogPathOptions path_options = LOG_PATH_OPTIONS_INIT;
+{  
    LuaReader* self = (LuaReader*) data;
-   /*
-   while(1)
-   {
-     LogMessage* lm = log_msg_new_internal(0, "kakukk");
-     log_msg_refcache_start_producer(lm);
-     log_pipe_queue(&self->super.super, lm, &path_options);
-     log_msg_refcache_stop();
-     sleep(10);
-   }*/
    lua_getglobal(self->state, "thread_func");
    lua_pushlightuserdata(self->state, self);
    lua_pcall(self->state, 1, 0, 0);
@@ -102,6 +96,7 @@ gboolean aflua_sd_deinit(LogPipe* s)
 {
    AFLuaSourceDriver* self = (AFLuaSourceDriver*) s;
    log_pipe_deinit(self->reader);
+   return TRUE;
 }
 
 void aflua_sd_free(LogPipe* s)
@@ -118,6 +113,7 @@ gboolean aflua_sd_init(LogPipe* s)
    self->reader = lua_reader_new(self->thread_func, &self->source_options);
    log_pipe_append(self->reader, &self->super.super.super);
    log_pipe_init(self->reader, cfg);
+   return TRUE;
 }
 
 

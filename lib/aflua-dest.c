@@ -1,6 +1,8 @@
 #include "aflua-dest.h"
 #include "luaconfig.h"
 #include "messages.h"
+#include <lauxlib.h>
+#include <lualib.h>
 
 void aflua_dd_queue(LogPipe *s, LogMessage *msg, const LogPathOptions *path_options, gpointer user_data)
 {

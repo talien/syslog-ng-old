@@ -31,11 +31,11 @@ aflua_dd_init(LogPipe *s)
      lua_getglobal(self->state, "lua_init_func");
      if (lua_isnil(self->state, -1))
      {
-       msg_error("Error happened during calling Lua destination initializing function2!", NULL);
+       msg_error("Lua destination initializing function cannot be found!", NULL);
      }
      int ret = lua_pcall(self->state, 0, 0, 0);
      if (ret)
-       msg_error("Error happened during calling Lua destination initializing function!", NULL);
+       msg_error("Error happened during calling Lua destination initializing function!", evt_tag_str("error", lua_tostring(self->state, -1) ), NULL);
   }  
   if (!log_dest_driver_init_method(s))
     return FALSE;

@@ -304,7 +304,7 @@ int lua_config_load(GlobalConfig* self, const char* filename)
     if (luaL_loadfile(self->lua_cfg_state, filename) ||  
         lua_pcall(self->lua_cfg_state, 0,0,0) )
 	{
-	     fprintf(stderr,"%s\n", lua_tostring(self->lua_cfg_state,-1));
+	     msg_error("Error parsing configuration", evt_tag_str("error",lua_tostring(self->lua_cfg_state,-1)),NULL );
              lua_close(self->lua_cfg_state);
              self->lua_cfg_state = NULL;
 	     return FALSE;

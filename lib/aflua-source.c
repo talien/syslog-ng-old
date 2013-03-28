@@ -55,7 +55,11 @@ static void lua_reader_thread(void* data)
    LuaReader* self = (LuaReader*) data;
    lua_getglobal(self->state, "thread_func");
    lua_pushlightuserdata(self->state, self);
-   lua_pcall(self->state, 1, 0, 0);
+   if (lua_pcall(self->state, 1, 0, 0))
+   {
+     const char* errmsg = lua_tostring(self->state, -1);
+     fprintf(stderr, "Error happened in lua_source, %s\n", errmsg);
+   }
 }
 
 static void lua_start_thread(LuaReader* self)

@@ -11,7 +11,8 @@ void aflua_dd_queue(LogPipe *s, LogMessage *msg, const LogPathOptions *path_opti
    log_template_format(self->template, msg, NULL, 0, 0, NULL, str);
    lua_getglobal(self->state, "lua_dest_func");
    lua_pushlstring(self->state, str->str, str->len);
-   lua_pcall(self->state, 1, 0, 0);
+   if (lua_pcall(self->state, 1, 0, 0)) 
+      msg_error("Error happened during calling Lua destination function!", evt_tag_str("error", lua_tostring(self->state, -1) ), NULL);
    log_dest_driver_queue_method(s, msg, path_options, user_data);
    g_string_free(str, TRUE);
 };

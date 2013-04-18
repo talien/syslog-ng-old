@@ -12,6 +12,7 @@ typedef struct _LuaReader
    GThread *thread;
    GMutex *thread_mutex;
    gboolean restart_on_error;
+   gboolean exit;
 } LuaReader;
 
 void aflua_sd_queue(LogPipe* pipe, LogMessage *msg, LogPathOptions *path_options, gpointer user_data)
@@ -51,21 +52,42 @@ static int lua_post(lua_State* state)
    return 0;
 }
 
+static int lua_reader_sleep(lua_State* state)
+{
+   LuaReader* self = NULL;
+   if (!lua_islightuserdata(state, 1))
+   {
+      msg_error("lua_reader_sleep: First parameter is not the parameter of the main source function!", NULL);
+      return 0;
+   }   
+   self = lua_topointer(state, 1);
+   int secs = lua_tointeger(state, 2);
+   /*TODO: exchange sleep with a g_cond_wait.
+           _deinit should signal this cond.
+   */
+   sleep(secs);
+   if (self->exit)
+     return luaL_error(state, "Lua Source is ending");
+   return 0;
+}
+
 static void lua_reader_thread(void* data)
 {  
    LuaReader* self = (LuaReader*) data;
-   while (TRUE)
+   while (!self->exit)
    {
      lua_getglobal(self->state, "thread_func");
      lua_pushlightuserdata(self->state, self);
      if (lua_pcall(self->state, 1, 0, 0))
      {
        const char* errmsg = lua_tostring(self->state, -1);
-       fprintf(stderr, "Error happened in lua_source, %s\n", errmsg);
+       if(!self->exit)
+          fprintf(stderr, "Error happened in lua_source, %s\n", errmsg);
      }
      if (!self->restart_on_error)
        break;
    }
+   //main_loop_call(main_loop_external_thread_quit, NULL, TRUE);
 }
 
 static void lua_start_thread(LuaReader* self)
@@ -73,7 +95,6 @@ static void lua_start_thread(LuaReader* self)
   msg_debug("Starting LuaReader thread", NULL);
   self->thread_mutex = g_mutex_new();
   self->thread = create_worker_thread(lua_reader_thread, self, TRUE, NULL);
-  //main_loop_external_thread_started();
   //TODO: implemented external thread started
 }
 
@@ -88,6 +109,8 @@ gboolean lua_reader_init(LogPipe* pipe)
 gboolean lua_reader_deinit(LogPipe* pipe)
 {
   LuaReader* self = (LuaReader*) pipe;
+  self->exit = TRUE;
+  g_thread_join(self->thread);
   lua_close(self->state);
   return TRUE;
 }
@@ -110,9 +133,11 @@ LogPipe* lua_reader_new(GString* func, LogSourceOptions* options, gboolean resta
    self->reader_start.cookie = self;
    self->reader_start.handler = lua_start_thread;
    self->restart_on_error = restart_on_error;
+   self->exit = FALSE;
    self->state = lua_open();
    luaL_openlibs(self->state);
    lua_register(self->state, "post", lua_post);
+   lua_register(self->state, "sleep", lua_reader_sleep);
    lua_register_message(self->state);
    aflua_load_bytecode_into_state(self->state, "thread_func", func);
    return self;

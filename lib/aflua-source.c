@@ -11,6 +11,7 @@ typedef struct _LuaReader
    struct iv_task reader_start;
    GThread *thread;
    GMutex *thread_mutex;
+   gboolean restart_on_error;
 } LuaReader;
 
 void aflua_sd_queue(LogPipe* pipe, LogMessage *msg, LogPathOptions *path_options, gpointer user_data)
@@ -53,12 +54,17 @@ static int lua_post(lua_State* state)
 static void lua_reader_thread(void* data)
 {  
    LuaReader* self = (LuaReader*) data;
-   lua_getglobal(self->state, "thread_func");
-   lua_pushlightuserdata(self->state, self);
-   if (lua_pcall(self->state, 1, 0, 0))
+   while (TRUE)
    {
-     const char* errmsg = lua_tostring(self->state, -1);
-     fprintf(stderr, "Error happened in lua_source, %s\n", errmsg);
+     lua_getglobal(self->state, "thread_func");
+     lua_pushlightuserdata(self->state, self);
+     if (lua_pcall(self->state, 1, 0, 0))
+     {
+       const char* errmsg = lua_tostring(self->state, -1);
+       fprintf(stderr, "Error happened in lua_source, %s\n", errmsg);
+     }
+     if (!self->restart_on_error)
+       break;
    }
 }
 
@@ -92,7 +98,7 @@ void lua_reader_free(LogPipe* self)
 
 
 
-LogPipe* lua_reader_new(GString* func, LogSourceOptions* options)
+LogPipe* lua_reader_new(GString* func, LogSourceOptions* options, gboolean restart_on_error)
 {
    LuaReader* self = g_new0(LuaReader, 1);
    log_source_init_instance(&self->super);
@@ -103,6 +109,7 @@ LogPipe* lua_reader_new(GString* func, LogSourceOptions* options)
    IV_TASK_INIT(&self->reader_start);
    self->reader_start.cookie = self;
    self->reader_start.handler = lua_start_thread;
+   self->restart_on_error = restart_on_error;
    self->state = lua_open();
    luaL_openlibs(self->state);
    lua_register(self->state, "post", lua_post);
@@ -129,18 +136,19 @@ gboolean aflua_sd_init(LogPipe* s)
    GlobalConfig *cfg = log_pipe_get_config(&self->super.super.super);
    log_source_options_init(&self->source_options, cfg, self->super.super.group);
    log_source_options_defaults(&self->source_options);
-   self->reader = lua_reader_new(self->thread_func, &self->source_options);
+   self->reader = lua_reader_new(self->thread_func, &self->source_options, self->restart_on_error);
    log_pipe_append(self->reader, &self->super.super.super);
    log_pipe_init(self->reader, cfg);
    return TRUE;
 }
 
 
-LogDriver* aflua_sd_new(GString* function)
+LogDriver* aflua_sd_new(GString* function, gboolean restart_on_error)
 {
    msg_debug("Creating Lua Source driver", NULL);
    AFLuaSourceDriver* self = g_new0(AFLuaSourceDriver,1);
    self->thread_func = function;
+   self->restart_on_error = restart_on_error;
    log_src_driver_init_instance(&self->super);
    self->super.super.super.init = aflua_sd_init;
    self->super.super.super.deinit = aflua_sd_deinit;
@@ -153,7 +161,8 @@ void aflua_source_driver(lua_State* state)
 {
    GString* byte_code;
    byte_code = aflua_get_bytecode_from_parameter(state, 1);
-   LogDriver* d = aflua_sd_new(byte_code);
+   gboolean restart_on_error = lua_toboolean(state, 2);
+   LogDriver* d = aflua_sd_new(byte_code, restart_on_error);
    lua_create_userdata_from_pointer(state, d, LUA_SOURCE_DRIVER_TYPE);
    return 1;
 }

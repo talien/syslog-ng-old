@@ -12,6 +12,7 @@ typedef struct _LuaReader
    GThread *thread;
    GMutex *thread_mutex;
    GCond* sleep_condition;
+   GCond* wakeup_condition;
    GMutex* sleep_condition_mutex;
    gboolean restart_on_error;
    gboolean exit;
@@ -22,6 +23,19 @@ void aflua_sd_queue(LogPipe* pipe, LogMessage *msg, LogPathOptions *path_options
    log_pipe_forward_msg(pipe, msg, path_options);
    return;
 }
+
+void lua_source_wait_till_window_free(LuaReader* self)
+{
+   GTimeVal tv;
+   while (!log_source_free_to_send(&self->super))
+   {
+     g_get_current_time (&tv);
+     g_time_val_add (&tv, 10);
+     g_mutex_lock(self->thread_mutex);
+     g_cond_timed_wait(self->wakeup_condition, self->thread_mutex, &tv);
+     g_mutex_unlock(self->thread_mutex);
+   }
+} 
 
 static int lua_post(lua_State* state)
 {
@@ -106,6 +120,7 @@ static void lua_start_thread(LuaReader* self)
 {
   msg_debug("Starting LuaReader thread", NULL);
   self->thread_mutex = g_mutex_new();
+  self->wakeup_condition = g_cond_new();
   self->thread = create_worker_thread(lua_reader_thread, self, TRUE, NULL);
   //TODO: implemented external thread started
 }
@@ -140,9 +155,22 @@ void lua_reader_free(LogPipe* pipe)
    LuaReader* self = (LuaReader*) pipe;
    g_cond_free(self->sleep_condition);
    g_mutex_free(self->sleep_condition_mutex);
+   g_mutex_free(self->thread_mutex);
+   g_cond_free(self->wakeup_condition);
 }
 
+static void lua_reader_signal_cond(LuaReader* self)
+{
+  g_mutex_lock(self->thread_mutex);
+  g_cond_signal(self->wakeup_condition);
+  g_mutex_unlock(self->thread_mutex);
+}
 
+static void lua_reader_wakeup(LogSource* s)
+{
+   LuaReader* self = (LuaReader*) s;
+   lua_reader_signal_cond(self);
+}
 
 LogPipe* lua_reader_new(GString* func, LogSourceOptions* options, gboolean restart_on_error)
 {
@@ -152,6 +180,7 @@ LogPipe* lua_reader_new(GString* func, LogSourceOptions* options, gboolean resta
    self->super.super.init = lua_reader_init;
    self->super.super.deinit = lua_reader_deinit;
    self->super.super.free_fn = lua_reader_free;
+   self->super.wakeup = lua_reader_wakeup;
    IV_TASK_INIT(&self->reader_start);
    self->reader_start.cookie = self;
    self->reader_start.handler = lua_start_thread;

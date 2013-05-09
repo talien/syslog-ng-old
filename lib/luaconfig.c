@@ -6,6 +6,7 @@
 #include "logreader.h"
 #include <gmodule.h>
 #include "lua-filter.h"
+#include "lua-parser.h"
 #include "afinter.h"
 #include "lua-option-parser.h"
 #include "lua-options.h"
@@ -291,6 +292,7 @@ void lua_config_register(lua_State* state, GlobalConfig* conf)
    lua_register_type(state, LUA_LOG_EXPR_TYPE);
    lua_register_type(state, LUA_LOG_FORK_TYPE);
    cfg_lua_register_filter(state);
+   cfg_lua_register_parser(state);
    lua_pushlightuserdata(state, conf);
    lua_setglobal(state, "__conf");
 }

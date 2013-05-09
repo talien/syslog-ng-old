@@ -24,6 +24,7 @@
 #include "cfg-parser.h"
 #include "plugin.h"
 #include "dbparser.h"
+#include "dbparser-lua.h"
 
 extern CfgParser dbparser_parser;
 
@@ -52,4 +53,5 @@ const ModuleInfo module_info =
   .core_revision = SOURCE_REVISION,
   .plugins = dbparser_plugins,
   .plugins_len = G_N_ELEMENTS(dbparser_plugins),
+  .lua_reg_func = dbparser_register_lua_config,
 };

@@ -21,6 +21,7 @@ libsyslog_ng_patterndb_a_CFLAGS = $(AM_CFLAGS) -fPIC
 module_LTLIBRARIES = libdbparser.la
 libdbparser_la_SOURCES = \
 	dbparser.c dbparser.h \
+    dbparser-lua.c dbparser-lua.h \
 	dbparser-grammar.y dbparser-parser.c dbparser-parser.h \
 	dbparser-plugin.c $(libsyslog_ng_patterndb_a_SOURCES)
 

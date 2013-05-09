@@ -11,6 +11,8 @@ typedef struct _LuaReader
    struct iv_task reader_start;
    GThread *thread;
    GMutex *thread_mutex;
+   GCond* sleep_condition;
+   GMutex* sleep_condition_mutex;
    gboolean restart_on_error;
    gboolean exit;
 } LuaReader;
@@ -46,15 +48,19 @@ static int lua_post(lua_State* state)
       msg_error("lua_post: Message is null, not posting!", NULL);
       return 0;
    }
+   lua_source_wait_till_window_free(self);
    log_msg_refcache_start_producer(lm);
    log_pipe_queue(&self->super.super, lm, &path_options);
    log_msg_refcache_stop();
+   if (self->exit)
+     return luaL_error(state, "Lua Source is ending");
    return 0;
 }
 
 static int lua_reader_sleep(lua_State* state)
 {
    LuaReader* self = NULL;
+   GTimeVal tv;
    if (!lua_islightuserdata(state, 1))
    {
       msg_error("lua_reader_sleep: First parameter is not the parameter of the main source function!", NULL);
@@ -65,7 +71,13 @@ static int lua_reader_sleep(lua_State* state)
    /*TODO: exchange sleep with a g_cond_wait.
            _deinit should signal this cond.
    */
-   sleep(secs);
+   //sleep(secs);
+   g_get_current_time (&tv);
+   g_time_val_add (&tv, secs * 1000 * 1000);
+   g_mutex_lock(self->sleep_condition_mutex);
+   g_cond_timed_wait(self->sleep_condition, self->sleep_condition_mutex, &tv);
+   g_mutex_unlock(self->sleep_condition_mutex);
+
    if (self->exit)
      return luaL_error(state, "Lua Source is ending");
    return 0;
@@ -106,17 +118,28 @@ gboolean lua_reader_init(LogPipe* pipe)
    return TRUE;
 }
 
+void lua_reader_signal_sleep_condition(LuaReader* self)
+{
+  g_mutex_lock(self->sleep_condition_mutex);
+  g_cond_signal(self->sleep_condition);
+  g_mutex_unlock(self->sleep_condition_mutex);
+}
+
 gboolean lua_reader_deinit(LogPipe* pipe)
 {
   LuaReader* self = (LuaReader*) pipe;
   self->exit = TRUE;
+  lua_reader_signal_sleep_condition(self);
   g_thread_join(self->thread);
   lua_close(self->state);
   return TRUE;
 }
 
-void lua_reader_free(LogPipe* self)
+void lua_reader_free(LogPipe* pipe)
 {
+   LuaReader* self = (LuaReader*) pipe;
+   g_cond_free(self->sleep_condition);
+   g_mutex_free(self->sleep_condition_mutex);
 }
 
 
@@ -140,6 +163,8 @@ LogPipe* lua_reader_new(GString* func, LogSourceOptions* options, gboolean resta
    lua_register(self->state, "sleep", lua_reader_sleep);
    lua_register_message(self->state);
    aflua_load_bytecode_into_state(self->state, "thread_func", func);
+   self->sleep_condition = g_cond_new();
+   self->sleep_condition_mutex = g_mutex_new();
    return self;
 }
 

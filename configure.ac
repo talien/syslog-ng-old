@@ -1236,6 +1236,7 @@ AC_OUTPUT(dist.conf
           modules/cryptofuncs/Makefile
           modules/cryptofuncs/tests/Makefile
 	  modules/json/Makefile
+      modules/rss/Makefile
 	  modules/json/tests/Makefile
           modules/tfgeoip/Makefile
 	  scripts/Makefile

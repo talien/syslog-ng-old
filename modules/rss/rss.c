@@ -60,7 +60,7 @@ rss_format_backlog (RssDestDriver * self, GString * result)
 static int
 init_rss_listen_socket (RssDestDriver * self)
 {
-  int sock, addrlen, newsock, optval;
+  int sock, optval;
   struct sockaddr_in lsockaddr;
 
   sock = socket (AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -132,7 +132,7 @@ accept_and_serve_rss_connection (RssDestDriver * self)
 static void
 rss_remove_msg_from_backlog_unlocked (RssDestDriver * self)
 {
-  LogMessage *self;
+  LogMessage *msg;
   msg = g_list_nth_data (self->backlog, 0);
   self->backlog = g_list_remove (self->backlog, msg);
   log_msg_unref (msg);
@@ -201,7 +201,7 @@ rss_dd_init (LogPipe * s)
 gboolean
 rss_dd_deinit (LogPipe * s)
 {
-  RssDestDriver *self = (RssDestDriver *) s;
+  return TRUE;
 }
 
 void

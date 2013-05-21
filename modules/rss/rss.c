@@ -101,7 +101,7 @@ static GString *
 create_http_header ()
 {
   return
-    g_string_new ("HTTP/1.1 200 OK\n Content-Type:application/atom+xml\n\n");
+    g_string_new ("HTTP/1.1 200 OK\nContent-Type:application/atom+xml\n\n");
 }
 
 static void

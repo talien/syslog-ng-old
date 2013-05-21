@@ -31,6 +31,9 @@ int rss_parse(CfgLexer *lexer, RssDestDriver **instance, gpointer arg);
 static CfgLexerKeyword rss_keywords[] = {
   { "rss",                    KW_RSS },
   { "port", 		KW_RSS_PORT },
+  { "feed_title",        KW_RSS_TITLE },
+  { "entry_title",       KW_RSS_ENTRY_TITLE },
+  { "entry_description",  KW_RSS_ENTRY_DESCRIPTION }, 
   { NULL }
 };
 

@@ -21,6 +21,7 @@
  *
  */
 
+
 #include "rss.h"
 #include "rss-parser.h"
 #include "plugin.h"
@@ -35,18 +36,24 @@ rss_format_backlog (RssDestDriver * self, GString * result)
   int offset = self->id;
   result =
     g_string_append (result,
-		     "<?xml version=\"1.0\"?>\n<feed xmlns=\"http://www.w3.org/2005/Atom\">\n<title>syslog-ng</title><link>localhost:8080</link>");
+		     "<?xml version=\"1.0\"?>\n<feed xmlns=\"http://www.w3.org/2005/Atom\">\n<title>");
+  result = g_string_append (result, self->feed_title->str);
+  result = g_string_append (result, "</title><link>");
+  result = g_string_append (result, self->address->str);
+  result = g_string_append (result, "</link>");
   while (tmp)
     {
       message = g_string_new ("");
-      log_template_format (self->template, tmp->data, NULL, LTZ_LOCAL, 0,
+      log_template_format (self->entry_title, tmp->data, NULL, LTZ_LOCAL, 0,
 			   NULL, message);
-      snprintf (id_str, 10, "%d", offset);
       result = g_string_append (result, "<entry>\n <title>");
       result = g_string_append (result, message->str);
       result = g_string_append (result, "</title>\n <description>");
+      log_template_format (self->entry_description, tmp->data, NULL, LTZ_LOCAL, 0,
+			   NULL, message);
       result = g_string_append (result, message->str);
       result = g_string_append (result, "</description>\n <id>");
+      snprintf (id_str, 10, "%d", offset);
       result = g_string_append (result, id_str);
       result = g_string_append (result, "</id>\n</entry>\n");
       g_string_free (message, TRUE);
@@ -55,6 +62,12 @@ rss_format_backlog (RssDestDriver * self, GString * result)
     }
   result = g_string_append (result, "</feed>\n");
   return result;
+}
+
+static void generate_address_string(RssDestDriver* self)
+{
+  self->address = g_string_new("");
+  g_string_printf(self->address, "localhost:%d", self->port);
 }
 
 static int
@@ -169,6 +182,30 @@ rss_dd_set_port (LogDriver * s, int port)
   self->port = port;
 }
 
+void rss_dd_set_title(LogDriver* s, const char* title)
+{
+  RssDestDriver *self = (RssDestDriver *) s;
+  self->feed_title = g_string_new (g_strdup (title) );
+}
+
+void rss_dd_set_entry_title(LogDriver* s, const char* title)
+{
+  GError* error = NULL;
+  RssDestDriver *self = (RssDestDriver *) s;
+
+  self->entry_title = log_template_new (configuration, NULL);
+  log_template_compile (self->entry_title, title, &error);
+}
+
+void rss_dd_set_entry_description(LogDriver* s, const char* description)
+{
+  GError* error = NULL;
+  RssDestDriver *self = (RssDestDriver *) s;
+
+  self->entry_description = log_template_new (configuration, NULL);
+  log_template_compile (self->entry_description, description, &error);
+}
+
 static gboolean
 rss_register_listen_fd (RssDestDriver * self)
 {
@@ -183,6 +220,9 @@ rss_register_listen_fd (RssDestDriver * self)
   self->listen_fd.cookie = self;
   self->listen_fd.handler_in = accept_and_serve_rss_connection;
   iv_fd_register (&self->listen_fd);
+   
+  generate_address_string(self); 
+
   return TRUE;
 }
 
@@ -191,10 +231,13 @@ rss_dd_init (LogPipe * s)
 {
   GError *error = NULL;
   RssDestDriver *self = (RssDestDriver *) s;
+  if (!self->feed_title || !self->entry_title || !self->entry_description)
+  {
+     msg_error("title, entry_title, entry_description options are mandatory for RSS destination", NULL);
+     return FALSE;
+  }
 
   self->lock = g_mutex_new ();
-  self->template = log_template_new (configuration, "temp1");
-  log_template_compile (self->template, "${MESSAGE}", &error);
   return rss_register_listen_fd (self);
 }
 
@@ -209,6 +252,10 @@ rss_dd_free (LogPipe * s)
 {
   RssDestDriver *self = (RssDestDriver *) s;
   g_list_free_full (self->backlog, log_msg_unref);
+  g_string_free(self->address, TRUE);
+  g_string_free(self->feed_title, TRUE);
+  log_template_unref(self->entry_title);
+  log_template_unref(self->entry_description);
 }
 
 LogDriver *

@@ -33,12 +33,18 @@ typedef struct
   int port;
   int id;
   GMutex* lock;
-  LogTemplate* template;
+  LogTemplate* entry_title;
+  LogTemplate* entry_description;
   struct iv_fd listen_fd;
+  GString *address;
+  GString* feed_title;
 } RssDestDriver;
 
 LogDriver *rss_dd_new(void);
 void rss_dd_set_port(LogDriver* self, int port);
 void rss_dd_set_localip(LogDriver* s, gchar* localip);
+void rss_dd_set_title(LogDriver* s, const char* title);
+void rss_dd_set_entry_title(LogDriver* s, const char* title);
+void rss_dd_set_entry_description(LogDriver* s, const char* title);
 
 #endif

@@ -31,7 +31,7 @@ class MessageSender(object):
         self.initSender()
         expected = []
 
-        for counter in range(1, self.repeat):
+        for counter in range(1, self.repeat + 1):
             if self.new_protocol == 0:
                 line = '<%d>%s %s %03d/%05d %s %s' % (pri, syslog_prefix, msg, session_counter, counter, str(self), padding)
             else:
@@ -41,7 +41,7 @@ class MessageSender(object):
             if self.dgram == 0 and self.new_protocol == 1:
                 line = '%d %s' % (len(line), line)
             self.sendMessage(line) # file or socket
-        expected.append((msg, session_counter, self.repeat))
+        expected.append((msg, session_counter, self.repeat + 1))
         session_counter = session_counter + 1
         return expected
 

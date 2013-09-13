@@ -939,6 +939,25 @@ vp_cmdline_parse_rekey_shift (const gchar *option_name, const gchar *value,
   return TRUE;
 }
 
+static gboolean
+vp_cmdline_parse_on_error (const gchar *option_name, const gchar *value,
+                           gpointer data, GError **error)
+{
+  gpointer *args = (gpointer *) data;
+  ValuePairs *vp = (ValuePairs *)args[1];
+  gint on_error;
+
+  if (!log_template_on_error_parse (value, &on_error))
+    {
+      g_set_error (error, G_OPTION_ERROR,G_OPTION_ERROR_FAILED,
+                   "Error parsing value-pairs: --on-error was specified with an invalid action");
+      return FALSE;
+    }
+
+  value_pairs_on_error_set (vp, on_error);
+  return TRUE;
+}
+
 ValuePairs *
 value_pairs_new_from_cmdline (GlobalConfig *cfg,
 			      gint argc, gchar **argv,
@@ -966,6 +985,8 @@ value_pairs_new_from_cmdline (GlobalConfig *cfg,
       NULL, NULL },
     { "replace", 0, G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_CALLBACK,
       vp_cmdline_parse_rekey_replace_prefix, NULL, NULL },
+    { "on-error", 'O', 0, G_OPTION_ARG_CALLBACK, vp_cmdline_parse_on_error,
+      NULL, NULL },
     { G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_CALLBACK, vp_cmdline_parse_pair,
       NULL, NULL },
     { NULL }

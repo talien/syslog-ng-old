@@ -29,6 +29,7 @@
 #include "cfg.h"
 #include "value-pairs.h"
 #include "vptransform.h"
+#include "syslog-ng.h"
 
 typedef struct _TFJsonState
 {
@@ -60,6 +61,7 @@ typedef struct
 {
   gboolean need_comma;
   GString *buffer;
+  gint on_error;
 } json_state_t;
 
 static inline void
@@ -163,37 +165,96 @@ tf_json_obj_end(const gchar *name,
 }
 
 static gboolean
-tf_json_value(const gchar *name, const gchar *prefix,
-              TypeHint type, const gchar *value,
-              gpointer *prefix_data, gpointer user_data)
+tf_json_append_value(const gchar *name, const gchar *value,
+                     json_state_t *state, gboolean quoted)
 {
-  json_state_t *state = (json_state_t *)user_data;
-
   if (state->need_comma)
     g_string_append_c(state->buffer, ',');
 
   g_string_append_c(state->buffer, '"');
   g_string_append_escaped(state->buffer, name);
-  g_string_append(state->buffer, "\":\"");
+
+  if (quoted)
+    g_string_append(state->buffer, "\":\"");
+  else
+    g_string_append(state->buffer, "\":");
+
   g_string_append_escaped(state->buffer, value);
-  g_string_append_c(state->buffer, '"');
+
+  if (quoted)
+    g_string_append_c(state->buffer, '"');
+
+  return TRUE;
+}
+
+static gboolean
+tf_json_value(const gchar *name, const gchar *prefix,
+              TypeHint type, const gchar *value,
+              gpointer *prefix_data, gpointer user_data)
+{
+  json_state_t *state = (json_state_t *)user_data;
+  gint on_error = state->on_error;
+
+  switch (type)
+    {
+    case TYPE_HINT_STRING:
+    case TYPE_HINT_DATETIME:
+    default:
+      tf_json_append_value(name, value, state, TRUE);
+      break;
+    case TYPE_HINT_LITERAL:
+      tf_json_append_value(name, value, state, FALSE);
+      break;
+    case TYPE_HINT_INT32:
+    case TYPE_HINT_INT64:
+    case TYPE_HINT_BOOLEAN:
+      {
+        gint32 i32;
+        gint64 i64;
+        gboolean b;
+        gboolean r = FALSE, fail = FALSE;
+        const gchar *v = value;
+
+        if (type == TYPE_HINT_INT32 &&
+            (fail = !type_cast_to_int32(value, &i32 , NULL)) == TRUE)
+          r = type_cast_drop_helper(on_error, value, "int32");
+        else if (type == TYPE_HINT_INT64 &&
+            (fail = !type_cast_to_int64(value, &i64 , NULL)) == TRUE)
+          r = type_cast_drop_helper(on_error, value, "int64");
+        else if (type == TYPE_HINT_BOOLEAN)
+          {
+            if ((fail = !type_cast_to_boolean(value, &b , NULL)) == TRUE)
+              r = type_cast_drop_helper(on_error, value, "boolean");
+            else
+              v = b ? "true" : "false";
+          }
+
+        if (fail &&
+            !(on_error & ON_ERROR_FALLBACK_TO_STRING))
+          return r;
+
+        tf_json_append_value(name, v, state, fail);
+        break;
+      }
+    }
 
   state->need_comma = TRUE;
 
   return FALSE;
 }
 
-static void
+static gboolean
 tf_json_append(GString *result, ValuePairs *vp, LogMessage *msg)
 {
   json_state_t state;
 
   state.need_comma = FALSE;
   state.buffer = result;
+  state.on_error = value_pairs_on_error_get(vp);
 
-  value_pairs_walk(vp,
-                   tf_json_obj_start, tf_json_value, tf_json_obj_end,
-                   msg, 0, &state);
+  return value_pairs_walk(vp,
+                          tf_json_obj_start, tf_json_value, tf_json_obj_end,
+                          msg, 0, &state);
 }
 
 static void
@@ -202,9 +263,14 @@ tf_json_call(LogTemplateFunction *self, gpointer s,
 {
   TFJsonState *state = (TFJsonState *)s;
   gint i;
+  gboolean r = TRUE;
+  gsize orig_size = result->len;
 
   for (i = 0; i < args->num_messages; i++)
-    tf_json_append(result, state->vp, args->messages[i]);
+    r &= tf_json_append(result, state->vp, args->messages[i]);
+
+  if (!r && (value_pairs_on_error_get(state->vp) & ON_ERROR_DROP_MESSAGE))
+    g_string_set_size(result, orig_size);
 }
 
 static void

@@ -24,6 +24,47 @@ test_format_json_rekey(void)
                          "{\"_msg\":{\"text\":\"dotted\"}}");
 }
 
+void
+test_format_json_with_type_hints(void)
+{
+  assert_template_format("$(format-json i32=int32(1234))",
+                         "{\"i32\":1234}");
+  assert_template_format("$(format-json \"i=ifoo(\")",
+                         "{\"i\":\"ifoo(\"}");
+  assert_template_format("$(format-json b=boolean(TRUE))",
+                         "{\"b\":true}");
+}
+
+void
+test_format_json_on_error(void)
+{
+  assert_template_format("$(format-json x=y bad=boolean(blah) --on-error=drop-message foo=bar)",
+                         "");
+  assert_template_format("$(format-json x=y bad=int32(blah) --on-error=drop-message foo=bar)",
+                         "");
+  assert_template_format("$(format-json x=y bad=int64(blah) --on-error=drop-message foo=bar)",
+                         "");
+
+  assert_template_format("$(format-json x=y bad=boolean(blah) --on-error=drop-property foo=bar)",
+                         "{\"x\":\"y\",\"foo\":\"bar\"}");
+  assert_template_format("$(format-json x=y bad=boolean(blah) --on-error=drop-property)",
+                         "{\"x\":\"y\"}");
+  assert_template_format("$(format-json x=y bad=int32(blah) --on-error=drop-property)",
+                         "{\"x\":\"y\"}");
+  assert_template_format("$(format-json x=y bad=int64(blah) --on-error=drop-property)",
+                         "{\"x\":\"y\"}");
+
+  assert_template_format("$(format-json x=y bad=boolean(blah) --on-error=fallback-to-string foo=bar)",
+                         "{\"x\":\"y\",\"foo\":\"bar\",\"bad\":\"blah\"}");
+  assert_template_format("$(format-json x=y bad=boolean(blah) --on-error=fallback-to-string)",
+                         "{\"x\":\"y\",\"bad\":\"blah\"}");
+  assert_template_format("$(format-json x=y bad=int32(blah) --on-error=fallback-to-string)",
+                         "{\"x\":\"y\",\"bad\":\"blah\"}");
+  assert_template_format("$(format-json x=y bad=int64(blah) --on-error=fallback-to-string)",
+                         "{\"x\":\"y\",\"bad\":\"blah\"}");
+
+}
+
 int
 main(int argc G_GNUC_UNUSED, char *argv[] G_GNUC_UNUSED)
 {
@@ -35,6 +76,8 @@ main(int argc G_GNUC_UNUSED, char *argv[] G_GNUC_UNUSED)
 
   test_format_json();
   test_format_json_rekey();
+  test_format_json_with_type_hints();
+  test_format_json_on_error();
 
   deinit_template_tests();
   app_shutdown();

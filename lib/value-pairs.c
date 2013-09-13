@@ -55,6 +55,8 @@ struct _ValuePairs
   /* guint32 as CfgFlagHandler only supports 32 bit integers */
   guint32 scopes;
   guint32 patterns_size;
+
+  gint on_error;
 };
 
 typedef enum
@@ -674,6 +676,18 @@ value_pairs_free (ValuePairs *vp)
     }
 
   g_free(vp);
+}
+
+gint
+value_pairs_on_error_get(ValuePairs *vp)
+{
+  return vp->on_error;
+}
+
+void
+value_pairs_on_error_set(ValuePairs *vp, gint on_error)
+{
+  vp->on_error = on_error;
 }
 
 void

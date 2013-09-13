@@ -70,4 +70,7 @@ ValuePairs *value_pairs_new_from_cmdline(GlobalConfig *cfg,
 					 gint argc, gchar **argv,
 					 GError **error);
 
+gint value_pairs_on_error_get(ValuePairs *vp);
+void value_pairs_on_error_set(ValuePairs *vp, gint on_error);
+
 #endif

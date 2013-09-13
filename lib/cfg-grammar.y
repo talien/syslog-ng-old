@@ -1108,7 +1108,10 @@ file_dir_perm_option
 
 value_pair_option
 	: KW_VALUE_PAIRS
-          { last_value_pairs = value_pairs_new(); }
+          {
+            last_value_pairs = value_pairs_new();
+            value_pairs_on_error_set(last_value_pairs, configuration->template_options.on_error);
+          }
           '(' vp_options ')'
           { $$ = last_value_pairs; }
 	;
@@ -1146,6 +1149,15 @@ vp_option
         vp_rekey_options ')'                     { value_pairs_add_transforms(last_value_pairs, last_vp_transset); }
 	| KW_EXCLUDE '(' string ')'	         { value_pairs_add_glob_pattern(last_value_pairs, $3, FALSE); free($3); }
 	| KW_SCOPE '(' vp_scope_list ')'
+        | KW_ON_ERROR '(' string ')'
+        {
+          gint on_error;
+
+          CHECK_ERROR(log_template_on_error_parse($3, &on_error), @3, "Invalid on-error() setting");
+          free($3);
+
+          value_pairs_on_error_set(last_value_pairs, on_error);
+        }
 	;
 
 vp_scope_list

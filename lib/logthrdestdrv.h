@@ -76,5 +76,6 @@ void log_threaded_dest_driver_init_instance(LogThrDestDriver *self);
 void log_threaded_dest_driver_free(LogPipe *s);
 
 void log_threaded_dest_driver_start(LogThrDestDriver *self);
+void log_threaded_dest_driver_suspend(LogThrDestDriver *self);
 
 #endif

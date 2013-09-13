@@ -25,7 +25,7 @@
 #include "logthrdestdrv.h"
 #include "misc.h"
 
-static void
+void
 log_threaded_dest_driver_suspend(LogThrDestDriver *self)
 {
   self->writer_thread_suspended = TRUE;

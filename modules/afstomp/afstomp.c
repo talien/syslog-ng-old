@@ -35,11 +35,11 @@
 
 #include <glib.h>
 #include <stomp.h>
+#include "logthrdestdrv.h"
 
 typedef struct {
-  LogDestDriver super;
+  LogThrDestDriver super;
 
-  /* Shared between main/writer; only read by the writer, never written */
   gchar *destination;
   LogTemplate *routing_key_template;
   LogTemplate *body_template;
@@ -53,24 +53,7 @@ typedef struct {
   gchar *user;
   gchar *password;
 
-  time_t time_reopen;
-
-  StatsCounterItem *dropped_messages;
-  StatsCounterItem *stored_messages;
-
   ValuePairs *vp;
-
-  /* Thread related stuff; shared */
-  GThread *writer_thread;
-  GMutex *queue_mutex;
-  GMutex *suspend_mutex;
-  GCond *writer_thread_wakeup_cond;
-
-  gboolean writer_thread_terminate;
-  gboolean writer_thread_suspended;
-  GTimeVal writer_thread_suspend_target;
-
-  LogQueue *queue;
 
   stomp_connection *conn;
   gint32 seq_num;
@@ -193,22 +176,6 @@ afstomp_dd_format_persist_name(STOMPDestDriver *self)
 }
 
 static void
-afstomp_dd_suspend(STOMPDestDriver *self)
-{
-  self->writer_thread_suspended = TRUE;
-  g_get_current_time(&self->writer_thread_suspend_target);
-  g_time_val_add(&self->writer_thread_suspend_target,
-                 self->time_reopen * 1000000);
-}
-
-static void
-afstomp_dd_disconnect(STOMPDestDriver *self)
-{
-  stomp_disconnect(&self->conn);
-  self->conn = NULL;
-}
-
-static void
 afstomp_create_connect_frame(STOMPDestDriver *self, stomp_frame* frame)
 {
   stomp_frame_init(frame, "CONNECT", sizeof("CONNECT"));
@@ -254,7 +221,7 @@ afstomp_dd_connect(STOMPDestDriver *self, gboolean reconnect)
       return FALSE;
   }
   msg_debug("Connecting to STOMP succeeded",
-            evt_tag_str("driver", self->super.super.id),
+            evt_tag_str("driver", self->super.super.super.id),
             NULL);
 
   stomp_frame_deinit(&frame);
@@ -262,9 +229,12 @@ afstomp_dd_connect(STOMPDestDriver *self, gboolean reconnect)
   return TRUE;
 }
 
-/*
- * Worker thread
- */
+static void
+afstomp_dd_disconnect(STOMPDestDriver *self)
+{
+  stomp_disconnect(&self->conn);
+  self->conn = NULL;
+}
 
 static gboolean
 afstomp_vp_foreach(const gchar *name, TypeHint type, const gchar *value,
@@ -352,7 +322,7 @@ afstomp_worker_insert(STOMPDestDriver *self)
   if (!afstomp_dd_connect(self, TRUE))
     return FALSE;
 
-  success = log_queue_pop_head(self->queue, &msg, &path_options, FALSE, FALSE);
+  success = log_queue_pop_head(self->super.queue, &msg, &path_options, FALSE, FALSE);
   if (!success)
     return TRUE;
 
@@ -362,106 +332,35 @@ afstomp_worker_insert(STOMPDestDriver *self)
 
   if (success)
     {
-      stats_counter_inc(self->stored_messages);
+      stats_counter_inc(self->super.stored_messages);
       step_sequence_number(&self->seq_num);
       log_msg_ack(msg, &path_options);
       log_msg_unref(msg);
     }
   else
     {
-      log_queue_push_head(self->queue, msg, &path_options);
+      log_queue_push_head(self->super.queue, msg, &path_options);
     }
 
   return success;
 }
 
 static void
-afstomp_dd_message_became_available_in_the_queue(gpointer user_data)
+afstomp_worker_init(LogThrDestDriver *s)
 {
-  STOMPDestDriver *self = (STOMPDestDriver *) user_data;
-
-  g_mutex_lock(self->suspend_mutex);
-  g_cond_signal(self->writer_thread_wakeup_cond);
-  g_mutex_unlock(self->suspend_mutex);
-}
-
-static gpointer
-afstomp_worker_thread(gpointer arg)
-{
-  STOMPDestDriver *self = (STOMPDestDriver *) arg;
-
-  msg_debug("Worker thread started",
-            evt_tag_str("driver", self->super.super.id), NULL);
-
+  STOMPDestDriver *self = (STOMPDestDriver*) s;
   afstomp_dd_connect(self, FALSE);
-
-  while (!self->writer_thread_terminate)
-    {
-      g_mutex_lock(self->suspend_mutex);
-      if (self->writer_thread_suspended)
-        {
-          g_cond_timed_wait(self->writer_thread_wakeup_cond, self->suspend_mutex, &self->writer_thread_suspend_target);
-          self->writer_thread_suspended = FALSE;
-          g_mutex_unlock(self->suspend_mutex);
-        }
-      else if (!log_queue_check_items(self->queue, NULL, afstomp_dd_message_became_available_in_the_queue, self, NULL))
-        {
-          g_cond_wait(self->writer_thread_wakeup_cond, self->suspend_mutex);
-          g_mutex_unlock(self->suspend_mutex);
-        }
-      else
-        g_mutex_unlock(self->suspend_mutex);
-
-      if (self->writer_thread_terminate)
-        break;
-
-      if (!afstomp_worker_insert(self))
-        {
-          afstomp_dd_disconnect(self);
-          afstomp_dd_suspend(self);
-        }
-    }
-
-  afstomp_dd_disconnect(self);
-
-  msg_debug("Worker thread finished",
-            evt_tag_str("driver", self->super.super.id), NULL);
-
-  return NULL;
-}
-
-/*
- * Main thread
- */
-
-static void
-afstomp_dd_start_thread(STOMPDestDriver *self)
-{
-  self->writer_thread = create_worker_thread(afstomp_worker_thread, self,
-                                             TRUE, NULL);
-}
-
-static void
-afstomp_dd_stop_thread(STOMPDestDriver *self)
-{
-  self->writer_thread_terminate = TRUE;
-  g_mutex_lock(self->queue_mutex);
-  g_cond_signal(self->writer_thread_wakeup_cond);
-  g_mutex_unlock(self->queue_mutex);
-  g_thread_join(self->writer_thread);
 }
 
 static gboolean
 afstomp_dd_init(LogPipe *s)
 {
   STOMPDestDriver *self = (STOMPDestDriver *) s;
-  GlobalConfig *cfg = log_pipe_get_config(s);
 
-  if (!log_dest_driver_init_method(s))
-    return FALSE;
+  if (!log_threaded_dest_driver_init_method(&self->super,afstomp_dd_format_persist_name(self),
+                                            SCS_STOMP, afstomp_dd_format_stats_instance(self)))
+      return FALSE;
 
-  if (cfg)
-    self->time_reopen = cfg->time_reopen;
 
   if (!self->vp)
     {
@@ -479,21 +378,7 @@ afstomp_dd_init(LogPipe *s)
               evt_tag_str("destination", self->destination),
               NULL);
 
-  self->queue = log_dest_driver_acquire_queue(&self->super, afstomp_dd_format_persist_name(self));
-
-  stats_lock();
-  stats_register_counter(0, SCS_STOMP | SCS_DESTINATION,
-                         self->super.super.id, afstomp_dd_format_stats_instance(self),
-                         SC_TYPE_STORED, &self->stored_messages);
-  stats_register_counter(0, SCS_STOMP | SCS_DESTINATION,
-                         self->super.super.id, afstomp_dd_format_stats_instance(self),
-                         SC_TYPE_DROPPED, &self->dropped_messages);
-  stats_unlock();
-
-  log_queue_set_counters(self->queue, self->stored_messages,
-                         self->dropped_messages);
-  afstomp_dd_start_thread(self);
-
+  log_threaded_dest_driver_start(&self->super);
   return TRUE;
 }
 
@@ -502,34 +387,15 @@ afstomp_dd_deinit(LogPipe *s)
 {
   STOMPDestDriver *self = (STOMPDestDriver *) s;
 
-  afstomp_dd_stop_thread(self);
-
-  log_queue_set_counters(self->queue, NULL, NULL);
-  stats_lock();
-  stats_unregister_counter(SCS_STOMP | SCS_DESTINATION,
-                           self->super.super.id, afstomp_dd_format_stats_instance(self),
-                           SC_TYPE_STORED, &self->stored_messages);
-  stats_unregister_counter(SCS_STOMP | SCS_DESTINATION,
-                           self->super.super.id, afstomp_dd_format_stats_instance(self),
-                           SC_TYPE_DROPPED, &self->dropped_messages);
-  stats_unlock();
-  if (!log_dest_driver_deinit_method(s))
-    return FALSE;
-
-  return TRUE;
+  return log_threaded_dest_driver_deinit_method(&self->super,
+                                                SCS_STOMP,
+                                                afstomp_dd_format_stats_instance(self));
 }
 
 static void
 afstomp_dd_free(LogPipe *d)
 {
   STOMPDestDriver *self = (STOMPDestDriver *) d;
-
-  g_mutex_free(self->suspend_mutex);
-  g_mutex_free(self->queue_mutex);
-  g_cond_free(self->writer_thread_wakeup_cond);
-
-  if (self->queue)
-    log_queue_unref(self->queue);
 
   g_free(self->destination);
   log_template_unref(self->routing_key_template);
@@ -539,39 +405,22 @@ afstomp_dd_free(LogPipe *d)
   g_free(self->host);
   if (self->vp)
     value_pairs_free(self->vp);
-  log_dest_driver_free(d);
+  log_threaded_dest_driver_free(d);
 }
-
-static void
-afstomp_dd_queue(LogPipe *s, LogMessage *msg,
-                const LogPathOptions *path_options, gpointer user_data)
-{
-  STOMPDestDriver *self = (STOMPDestDriver *) s;
-  LogPathOptions local_options;
-
-  if (!path_options->flow_control_requested)
-    path_options = log_msg_break_ack(msg, path_options, &local_options);
-
-  log_msg_add_ack(msg, path_options);
-  log_queue_push_tail(self->queue, log_msg_ref(msg), path_options);
-  log_dest_driver_queue_method(s, msg, path_options, user_data);
-
-}
-
-/*
- * Plugin glue.
- */
 
 LogDriver *
 afstomp_dd_new(void)
 {
   STOMPDestDriver *self = g_new0(STOMPDestDriver, 1);
 
-  log_dest_driver_init_instance(&self->super);
-  self->super.super.super.init = afstomp_dd_init;
-  self->super.super.super.deinit = afstomp_dd_deinit;
-  self->super.super.super.queue = afstomp_dd_queue;
-  self->super.super.super.free_fn = afstomp_dd_free;
+  log_threaded_dest_driver_init_instance(&self->super);
+  self->super.super.super.super.init = afstomp_dd_init;
+  self->super.super.super.super.deinit = afstomp_dd_deinit;
+  self->super.super.super.super.free_fn = afstomp_dd_free;
+
+  self->super.worker.init = afstomp_worker_init;
+  self->super.worker.disconnect = afstomp_dd_disconnect;
+  self->super.worker.insert = afstomp_worker_insert;
 
   self->routing_key_template = log_template_new(configuration, NULL);
 
@@ -583,10 +432,6 @@ afstomp_dd_new(void)
   afstomp_dd_set_ack((LogDriver *) self, FALSE);
 
   init_sequence_number(&self->seq_num);
-
-  self->writer_thread_wakeup_cond = g_cond_new();
-  self->suspend_mutex = g_mutex_new();
-  self->queue_mutex = g_mutex_new();
 
   return (LogDriver *) self;
 }

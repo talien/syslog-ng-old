@@ -248,6 +248,6 @@ void aflua_source_driver(lua_State* state)
 
 void aflua_register_lua_source(lua_State* state)
 {
-  lua_register(state, "LuaSource", aflua_source_driver);
+  lua_register_driver(state, "LuaSource", LUA_SOURCE_DRIVER_TYPE, aflua_source_driver);
 }
 

@@ -15,6 +15,10 @@
 
 #define LUA_C_CALL(name) static int name(lua_State* state)
 
+int anonym_id_counter = 0;
+
+typedef void (*instantiate_func)(lua_State* state);
+
 GlobalConfig* lua_get_config(lua_State* state)
 {
     GlobalConfig* result;
@@ -29,6 +33,15 @@ void lua_register_type(lua_State* state, const char* type)
    luaL_newmetatable(state, type);
    lua_pop(state, 1);
 }
+
+char* lua_get_field_from_table(lua_State* state, int index, const char* field) 
+{
+   char* value;
+   lua_getfield(state, index, field);
+   value = g_strdup(lua_tostring(state, -1));
+   lua_pop(state, 1);
+   return value;
+};
 
 int lua_create_userdata_from_pointer(lua_State* state, void* data, const char* type)
 {
@@ -71,15 +84,44 @@ void* lua_check_and_convert_userdata(lua_State* state, int index, const char* ty
    return lua_to_pointer_from_userdata(lua_check_user_data(state, index, type));
 }
 
+LogDriver* lua_create_driver_from_table(lua_State* state, int table_index)
+{
+   const char* driver_type;
+   const char* hidden_func_name;
+   driver_type = lua_get_field_from_table(state, -1, "type");
+   hidden_func_name = lua_get_field_from_table(state, -1, "real_name");
+   lua_getfield(state, -1, "params");
+   int top = lua_gettop(state);
+   int params_num = lua_objlen(state, -1);
+   int i;
+   lua_getglobal(state,hidden_func_name);
+   for (i =1; i<= params_num; i++)
+   {
+     lua_pushnumber(state, i);
+     lua_gettable(state, top);
+   }
+   if (lua_pcall(state, params_num, 1, 0))
+   {
+      printf("Error happened!\n");
+      printf("Error: %s\n", lua_tostring(state, -1));
+   }
+   LogDriver* result = lua_check_and_convert_userdata(state, -1, driver_type);
+   lua_pop(state, 2);
+   g_free(driver_type);
+   g_free(hidden_func_name);
+   return result;
+ }
+
 LogExprNode* lua_parse_driver_array(lua_State* state, const char* driver_type)
 {
    LogExprNode* content = NULL;
    LogDriver* driver = NULL; 
    lua_pushnil(state);
-   while(lua_next(state, -2)) { 
-      if(lua_isuserdata(state, -1)) 
+   while(lua_next(state, -2)) 
+   { 
+      if (lua_istable(state, -1))
       {
-        driver = lua_check_and_convert_userdata(state, -1, driver_type);
+        driver = lua_create_driver_from_table(state, -1);
 	    if (!driver)
         {
             msg_error("Driver type is not correct", evt_tag_str("expected_type", driver_type), NULL);
@@ -87,7 +129,7 @@ LogExprNode* lua_parse_driver_array(lua_State* state, const char* driver_type)
         }
         else
         {
-	        content = log_expr_node_append_tail(content, log_expr_node_new_pipe(driver, NULL));
+	        content = log_expr_node_append_tail(content, log_expr_node_new_pipe((LogPipe*)driver, NULL));
         }
       }
       else
@@ -100,85 +142,192 @@ LogExprNode* lua_parse_driver_array(lua_State* state, const char* driver_type)
    return content; 
 }
 
-LUA_C_CALL(lua_config_source_anonym)
-//static int lua_config_source_anonym(lua_State* state)
+static void lua_config_get_name_for_ref(char* buffer, int buf_size, char* type)
 {
-   LogExprNode* content = lua_parse_driver_array(state, LUA_SOURCE_DRIVER_TYPE);
-   LogExprNode* source = log_expr_node_new_source(NULL, content, NULL);
-   lua_create_userdata_from_pointer(state, source, LUA_LOG_EXPR_TYPE);
-   return 1; 
+   snprintf(buffer, buf_size, "%s-ref", type);
+};
+
+static void lua_config_generate_name_for_anonym(char* buffer)
+{
+   sprintf(buffer, "anon#%d", anonym_id_counter);
+   anonym_id_counter++;
+}
+
+static gboolean lua_config_is_object_instantiated(lua_State* state)
+{
+   const char* name;
+   lua_getglobal(state, "__objects");
+   lua_getfield(state, -2, "name");
+   lua_gettable(state, -2);
+   gboolean res = lua_isnoneornil(state, -1);
+   lua_pop(state, 2);
+   return !res;
+}
+
+static void lua_config_add_object_to_global_table(lua_State* state, const char* table_name)
+{
+   lua_getglobal(state, table_name);
+   lua_pushvalue(state, -2);
+   lua_getfield(state, -1, "name");
+   lua_pushvalue(state, -2);
+   lua_settable(state, -4);
+   lua_pop(state, 2);
+}
+
+static void lua_config_set_object_instantiated(lua_State* state)
+{
+   lua_config_add_object_to_global_table(state, "__objects");
+}
+
+static void lua_config_register_object_as_named_object(lua_State* state)
+{
+   lua_config_add_object_to_global_table(state, "__named_objects");
+}
+
+static int lua_config_object_named_new(lua_State* state, const char* type)
+{
+   lua_newtable(state);
+   lua_pushvalue(state, 1);
+   lua_setfield(state, -2, "name");
+   lua_pushvalue(state, 2);
+   lua_setfield(state, -2, "items");
+   lua_pushstring(state, type);
+   lua_setfield(state, -2, "type");
+   lua_config_register_object_as_named_object(state);
+   return 1;
+}
+
+static int lua_config_object_anonym_new(lua_State* state, const char* type)
+{
+   char name[128];
+   lua_config_generate_name_for_anonym(name);
+   lua_newtable(state);
+   lua_pushstring(state, name);
+   lua_setfield(state, -2, "name");
+   lua_pushvalue(state, 1);
+   lua_setfield(state, -2, "items");
+   lua_pushstring(state, type);
+   lua_setfield(state, -2, "type");
+   return 1;
+}
+
+static int lua_config_object_reference_new(lua_State* state, const char* type)
+{
+   char typename[128];
+   lua_newtable(state);
+   lua_pushvalue(state, 1);
+   lua_setfield(state, -2, "name");
+   lua_config_get_name_for_ref(typename, sizeof(typename), type);
+   lua_pushstring(state, typename);
+   lua_setfield(state, -2, "type");
+   return 1;
 }
 
 static int lua_config_source_reference(lua_State* state)
 {
-   const char* name = g_strdup(lua_tostring(state, 1));
+   const char* name = lua_get_field_from_table(state, -1, "name");
    LogExprNode* rule = log_expr_node_new_source_reference(name, NULL);
    lua_create_userdata_from_pointer(state, rule, LUA_LOG_EXPR_TYPE);
    return 1;
 }
 
-static int lua_config_source_named(lua_State* state)
+static void lua_config_instantiate_named_source(lua_State* state)
 {
    GlobalConfig* self;
-   const char* name = g_strdup(lua_tostring(state, 1));
+   const char* name = lua_get_field_from_table(state, -1, "name");
+   lua_getfield(state, -1, "items");
    LogExprNode* content = lua_parse_driver_array(state, LUA_SOURCE_DRIVER_TYPE);
    LogExprNode* source = log_expr_node_new_source(name, content, NULL);
    self = lua_get_config(state);
    cfg_tree_add_object(&self->tree, source);
-   return 0;
+   lua_pop(state, 1);
 }
 
-static int lua_config_source(lua_State* state)
+int lua_config_destination_reference(lua_State* state)
 {
-   if (lua_gettop(state) == 1)
-   {
-      if (lua_istable(state, 1))
-	return lua_config_source_anonym(state);
-      if (lua_isstring(state, 1))
-	return lua_config_source_reference(state);
-      //TODO: Error handling
-   }
-   return lua_config_source_named(state);
-}
+   const char* name;
+   name = lua_get_field_from_table(state, -1, "name");
 
-static int lua_config_destination_anonym(lua_State* state)
-{
-   LogExprNode* content = lua_parse_driver_array(state, LUA_DESTINATION_DRIVER_TYPE);
-   LogExprNode* destination = log_expr_node_new_destination(NULL, content, NULL);
-   lua_create_userdata_from_pointer(state, destination, LUA_LOG_EXPR_TYPE);
-   return 1; 
-}
-
-static int lua_config_destination_reference(lua_State* state)
-{
-   const char* name = g_strdup(lua_tostring(state, 1));
    LogExprNode* rule = log_expr_node_new_destination_reference(name, NULL);
    lua_create_userdata_from_pointer(state, rule, LUA_LOG_EXPR_TYPE);
    return 1;
 }
 
-static int lua_config_destination_named(lua_State* state)
+static int lua_config_instantiate_named_destination(lua_State* state)
 {
    GlobalConfig* self;
-   const char* name = g_strdup(lua_tostring(state, 1));
+   const char* name;
+   name = lua_get_field_from_table(state, -1, "name");
+   lua_getfield(state, -1, "items");
+
    LogExprNode* content = lua_parse_driver_array(state, LUA_DESTINATION_DRIVER_TYPE);
    LogExprNode* destination = log_expr_node_new_destination(name, content, NULL);
    self = lua_get_config(state);
    cfg_tree_add_object(&self->tree, destination);
-   return 0;
+   lua_pop(state, 1);
 }
 
-static int lua_config_destination(lua_State* state)
+GList* lua_config_classes = NULL;
+
+static void lua_config_reference_on_object(lua_State* state)
+{
+   const char *type; 
+   char refname[128];
+   type = lua_get_field_from_table(state, -1, "type");
+   GList* item;
+   for (item = lua_config_classes; item; item = item->next)
+   {
+      LuaConfigClass* class = (LuaConfigClass*)item->data;
+      lua_config_get_name_for_ref(refname, sizeof(refname), class->name);
+
+      if ( (!strcmp(type,class->name)) || (!strcmp(type, refname)))
+      {
+         class->reference_func(state);
+         break;
+      }
+   }
+
+   g_free(type);
+}  
+
+static int lua_config_process_object_ref(lua_State* state)
+{
+   lua_config_reference_on_object(state); 
+}
+
+static void lua_config_process_named_object(lua_State* state, instantiate_func instantiate)
+{
+   if (lua_config_is_object_instantiated(state))
+   {
+      lua_config_reference_on_object(state); 
+      return;
+   }
+   lua_config_set_object_instantiated(state);
+   instantiate(state);
+   lua_config_reference_on_object(state);
+}
+
+int lua_config_object(lua_State* state, const char* type)
 {
    if (lua_gettop(state) == 1)
    {
       if (lua_istable(state, 1))
-	return lua_config_destination_anonym(state);
+	     return lua_config_object_anonym_new(state, type);
       if (lua_isstring(state, 1))
-	return lua_config_destination_reference(state);
+     	return lua_config_object_reference_new(state, type);
       //TODO: Error handling
    }
-   return lua_config_destination_named(state);
+   return lua_config_object_named_new(state, type);
+}
+
+static int lua_config_source(lua_State* state)
+{
+   return lua_config_object(state, "source");
+}
+
+static int lua_config_destination(lua_State* state)
+{
+   return lua_config_object(state, "destination");
 }
 
 static int lua_config_parse_log_flags(lua_State* state)
@@ -194,6 +343,85 @@ static int lua_config_parse_log_flags(lua_State* state)
    return flags;
 }
 
+LuaConfigClass lua_config_source_class =
+{
+   .name = "source",
+   .instantiate_func = lua_config_instantiate_named_source,
+   .reference_func = lua_config_source_reference,
+};
+
+LuaConfigClass lua_config_destination_class =
+{
+   .name = "destination",
+   .instantiate_func = lua_config_instantiate_named_destination,
+   .reference_func = lua_config_destination_reference,
+};
+
+void lua_config_register_config_class(LuaConfigClass* class)
+{
+   lua_config_classes = g_list_append(lua_config_classes, class);
+};
+
+static int lua_process_expr_array_item(lua_State* state)
+{
+   const char* type;
+   char refname[128];
+   type = lua_get_field_from_table(state, -1, "type");
+   GList* item;
+   for (item = lua_config_classes; item; item = item->next)
+   {
+      LuaConfigClass* class = (LuaConfigClass*)item->data;
+      if (!strcmp(type,class->name))
+      {
+         lua_config_process_named_object(state, class->instantiate_func);
+         break;
+      }
+      lua_config_get_name_for_ref(refname, sizeof(refname), class->name);
+      if (!strcmp(type, refname))
+      {
+         lua_config_process_object_ref(state); 
+         break;
+      }
+   }
+   g_free(type);
+}
+
+static int lua_config_instantiate_object(lua_State* state)
+{
+   const char* type;
+   type = lua_get_field_from_table(state, -1, "type");
+   GList* item;
+   for (item = lua_config_classes; item; item = item->next)
+   {
+      LuaConfigClass* class = (LuaConfigClass*)item->data;
+      if (!strcmp(type,class->name))
+      {
+         class->instantiate_func(state);
+         break;
+      }
+   }
+   g_free(type);
+}
+
+static int lua_config_instantiate_leftover_objects(lua_State* state)
+{
+   lua_getglobal(state, "__named_objects");
+   gboolean res = lua_isnoneornil(state, -1);
+   res = lua_istable(state, -1);
+   lua_pushnil(state);
+   while(lua_next(state, -2)) 
+   {
+     char* key = lua_tostring(state, -2);
+     if (key != NULL)
+     {
+       if (!lua_config_is_object_instantiated(state))
+          lua_config_instantiate_object(state);
+     }
+     lua_pop(state, 1);
+   }
+ 
+};
+
 LogExprNode* lua_parse_expr_array(lua_State* state, int* flags)
 {
    LogExprNode *content = NULL, *item = NULL, *forks = NULL;
@@ -208,6 +436,8 @@ LogExprNode* lua_parse_expr_array(lua_State* state, int* flags)
          if (!strncmp("flags", key, 5))
          {
             log_flags = lua_config_parse_log_flags(state);
+            lua_pop(state, 1);
+            continue;
          }
       }
       if(lua_isuserdata(state, -1)) 
@@ -221,6 +451,14 @@ LogExprNode* lua_parse_expr_array(lua_State* state, int* flags)
           }
           else
 	        content = log_expr_node_append_tail(content, item);
+      }
+      if(lua_istable(state, -1))
+      {
+         lua_process_expr_array_item(state);
+         item = lua_check_and_convert_userdata(state, -1, LUA_LOG_EXPR_TYPE );
+	     content = log_expr_node_append_tail(content, item);
+         lua_pop(state, 1);
+
       }
       lua_pop(state, 1);
    }
@@ -277,14 +515,62 @@ static int lua_config_global_options(lua_State* state)
    return 0;
 }
 
+void lua_config_save_params_into_table(lua_State* state)
+{
+   int i;
+   int maxparams = lua_gettop(state);
+   lua_newtable(state);
+   for (i = 1; i<=maxparams; i++)
+   {
+      lua_pushvalue(state, i);
+      lua_rawseti(state, -2, i);
+   }
+}
+
+int lua_create_driver_wrapper(lua_State* state)
+{
+   lua_config_save_params_into_table(state);
+   lua_newtable(state);
+   lua_pushstring(state, "params");
+   lua_pushvalue(state, -3);
+   lua_settable(state, -3);
+   lua_pushstring(state, "type");
+   lua_pushvalue(state, lua_upvalueindex(2));
+   lua_settable(state, -3);
+   lua_pushstring(state, "real_name");
+   lua_pushvalue(state, lua_upvalueindex(1));
+   lua_settable(state, -3);
+   return 1;
+}
+
+void lua_register_driver(lua_State* state, const char* name, const char* type, lua_CFunction driver_func)
+{
+   //lua_register(state, name, driver_func);
+   //register original func as a hidden func
+   char hidden_name[128];
+   memset(hidden_name, 0, sizeof(hidden_name));
+   hidden_name[0] = '_';
+   strncpy(&hidden_name[1], name, sizeof(hidden_name));
+   lua_register(state, hidden_name, driver_func);
+   /* Create a c closure which knows the hidden func name, and returns a table
+      Every time the table is processed a new destination should be created */
+   lua_pushstring(state, hidden_name);
+   lua_pushstring(state, type);
+   lua_pushcclosure(state, lua_create_driver_wrapper, 2);
+   lua_setglobal(state, name);
+   
+}
+
 void lua_config_register(lua_State* state, GlobalConfig* conf)
 {
+   lua_config_register_config_class(&lua_config_source_class);
+   lua_config_register_config_class(&lua_config_destination_class);
    lua_register(state, "Source", lua_config_source);
    lua_register(state, "Destination", lua_config_destination);
    lua_register(state, "Log", lua_config_log);
    lua_register(state, "EmbeddedLog", lua_config_embedded_log);
-   lua_register(state, "Internal", lua_config_internal);
    lua_register(state, "Options", lua_config_global_options);
+   lua_register_driver(state, "Internal", LUA_SOURCE_DRIVER_TYPE, lua_config_internal);
    aflua_register_lua_dest(state);
    aflua_register_lua_source(state);
    lua_register_type(state, LUA_SOURCE_DRIVER_TYPE);
@@ -295,6 +581,10 @@ void lua_config_register(lua_State* state, GlobalConfig* conf)
    cfg_lua_register_parser(state);
    lua_pushlightuserdata(state, conf);
    lua_setglobal(state, "__conf");
+   lua_newtable(state);
+   lua_setglobal(state, "__objects");
+   lua_newtable(state);
+   lua_setglobal(state, "__named_objects");
 }
 
 int lua_config_load(GlobalConfig* self, const char* filename)
@@ -311,6 +601,7 @@ int lua_config_load(GlobalConfig* self, const char* filename)
              self->lua_cfg_state = NULL;
 	     return FALSE;
 	}
+    lua_config_instantiate_leftover_objects(self->lua_cfg_state);
     lua_close(self->lua_cfg_state);
     self->lua_cfg_state = NULL;
     return TRUE;

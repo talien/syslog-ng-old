@@ -13,5 +13,5 @@ int afprog_lua_program_dd(lua_State* state)
 void afprog_register_lua_config(GlobalConfig* cfg)
 {
    lua_State* state = cfg->lua_cfg_state;
-   lua_register(state, "ProgramDestination", afprog_lua_program_dd);
+   lua_register_driver(state, "ProgramDestination", LUA_DESTINATION_DRIVER_TYPE, afprog_lua_program_dd);
 };

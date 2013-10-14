@@ -178,6 +178,6 @@ aflua_dest_driver(lua_State* state)
 
 void aflua_register_lua_dest(lua_State* state)
 {
-  lua_register(state, "LuaDest", aflua_dest_driver);
+  lua_register_driver(state, "LuaDest", LUA_DESTINATION_DRIVER_TYPE, aflua_dest_driver);
 }
 

@@ -417,16 +417,16 @@ static int afsocket_network_destination(lua_State* state)
 void afsocket_register_lua_config(GlobalConfig* cfg)
 {
    lua_State* state = cfg->lua_cfg_state;
-   lua_register(state, "UnixStreamSource", afsocket_unix_stream_source); 
-   lua_register(state, "UnixStreamDestination", afsocket_unix_stream_destination); 
-   lua_register(state, "UnixDgramSource", afsocket_unix_dgram_source); 
-   lua_register(state, "UnixDgramDestination", afsocket_unix_dgram_destination); 
-   lua_register(state, "TcpSource", afsocket_tcp_source); 
-   lua_register(state, "UdpSource", afsocket_udp_source); 
-   lua_register(state, "UdpDestination", afsocket_udp_destination); 
-   lua_register(state, "TcpDestination", afsocket_tcp_destination); 
-   lua_register(state, "SyslogSource", afsocket_syslog_source);
-   lua_register(state, "SyslogDestination", afsocket_syslog_destination);
-   lua_register(state, "NetworkSource", afsocket_network_source);
-   lua_register(state, "NetworkDestination", afsocket_network_destination);
+   lua_register_driver(state, "UnixStreamSource", LUA_SOURCE_DRIVER_TYPE, afsocket_unix_stream_source); 
+   lua_register_driver(state, "UnixStreamDestination", LUA_DESTINATION_DRIVER_TYPE, afsocket_unix_stream_destination); 
+   lua_register_driver(state, "UnixDgramSource", LUA_SOURCE_DRIVER_TYPE, afsocket_unix_dgram_source); 
+   lua_register_driver(state, "UnixDgramDestination", LUA_DESTINATION_DRIVER_TYPE, afsocket_unix_dgram_destination); 
+   lua_register_driver(state, "TcpSource", LUA_SOURCE_DRIVER_TYPE, afsocket_tcp_source); 
+   lua_register_driver(state, "UdpSource", LUA_SOURCE_DRIVER_TYPE, afsocket_udp_source); 
+   lua_register_driver(state, "UdpDestination", LUA_DESTINATION_DRIVER_TYPE, afsocket_udp_destination); 
+   lua_register_driver(state, "TcpDestination", LUA_DESTINATION_DRIVER_TYPE, afsocket_tcp_destination); 
+   lua_register_driver(state, "SyslogSource", LUA_SOURCE_DRIVER_TYPE, afsocket_syslog_source);
+   lua_register_driver(state, "SyslogDestination", LUA_DESTINATION_DRIVER_TYPE, afsocket_syslog_destination);
+   lua_register_driver(state, "NetworkSource", LUA_SOURCE_DRIVER_TYPE, afsocket_network_source);
+   lua_register_driver(state, "NetworkDestination", LUA_DESTINATION_DRIVER_TYPE, afsocket_network_destination);
 }

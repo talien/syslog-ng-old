@@ -105,9 +105,8 @@ int affile_lua_pipe_sd(lua_State* state)
 void affile_register_lua_config(GlobalConfig* cfg)
 {
    lua_State* state = cfg->lua_cfg_state;
-   msg_debug("Registering affile lua config items", NULL);
-   lua_register(state, "FileSource", affile_lua_file_sd);
-   lua_register(state, "FileDestination", affile_lua_file_dd);
-   lua_register(state, "PipeSource", affile_lua_pipe_sd);
-   lua_register(state, "PipeDestination", affile_lua_pipe_dd);
+   lua_register_driver(state, "FileSource", LUA_SOURCE_DRIVER_TYPE, affile_lua_file_sd);
+   lua_register_driver(state, "FileDestination", LUA_DESTINATION_DRIVER_TYPE, affile_lua_file_dd);
+   lua_register_driver(state, "PipeSource", LUA_SOURCE_DRIVER_TYPE, affile_lua_pipe_sd);
+   lua_register_driver(state, "PipeDestination", LUA_DESTINATION_DRIVER_TYPE, affile_lua_pipe_dd);
 }

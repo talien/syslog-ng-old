@@ -3,7 +3,7 @@
 # This script is needed to setup build environment from checked out
 # source tree. 
 #
-SUBMODULES="lib/ivykis modules/afmongodb/libmongo-client modules/afamqp/rabbitmq-c"
+SUBMODULES="lib/ivykis modules/afmongodb/libmongo-client modules/afamqp/rabbitmq-c modules/xmpp/iksemel"
 GIT=`which git`
 
 autogen_submodules()

@@ -10,7 +10,7 @@ dnl SOURCE_REVISION    - Revision of the source-tree, will added to the version 
 dnl
 AC_INIT(syslog-ng/main.c)
 AC_CONFIG_MACRO_DIR([m4])
-m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
+#m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
 dnl ***************************************************************************
 dnl definitions
@@ -899,17 +899,24 @@ dnl iksemel
 dnl ***************************************************************************
 
 if test "x$enable_xmpp" != "xno"; then
-   if test "x$with_iksemel" != "x"; then
-     CPPFLAGS_SAVE="$CPPFLAGS"
-     LDFLAGS_SAVE="$LDFLAGS"
-     CPPFLAGS="$CPPFLAGS -I$with_iksemel/include"
-     LDFLAGS="$LDFLAGS -L$with_iksemel/lib"
-     AC_CHECK_HEADER(iksemel.h, [LIBIKSEMEL_CFLAGS="-I$with_iksemel/include"
-					     LIBIKSEMEL_LIBS="-L$with_iksemel/lib -liksemel"], [iksemel=no])
-     CPPFLAGS="$CPPFLAGS_SAVE" 
-     LDFLAGS="$LDFLAGS_SAVE"
-   else
-     AC_MSG_ERROR(with-iksemel is not specified but xmpp is enabled)
+   if test "x$with_iksemel" == "xinternal"; then
+     AC_CONFIG_SUBDIRS([modules/xmpp/iksemel])
+     LIBIKSEMEL_LIBS="-L\$(top_builddir)/modules/xmpp/iksemel/src -liksemel"
+     LIBIKSEMEL_CFLAGS="-I\$(top_srcdir)/modules/xmpp/iksemel/include"
+     LIBIKSEMEL_SUBDIRS="modules/xmpp/iksemel"
+   else 
+     if "x$with_iksemel" != "x"; then
+       CPPFLAGS_SAVE="$CPPFLAGS"
+       LDFLAGS_SAVE="$LDFLAGS"
+       CPPFLAGS="$CPPFLAGS -I$with_iksemel/include"
+       LDFLAGS="$LDFLAGS -L$with_iksemel/lib"
+       AC_CHECK_HEADER(iksemel.h, [LIBIKSEMEL_CFLAGS="-I$with_iksemel/include"
+                             LIBIKSEMEL_LIBS="-L$with_iksemel/lib -liksemel"], [enable_xmpp=no])
+       CPPFLAGS="$CPPFLAGS_SAVE" 
+       LDFLAGS="$LDFLAGS_SAVE"
+     else
+       AC_MSG_ERROR(with-iksemel is not specified but xmpp is enabled)
+     fi
    fi
 fi 
 
@@ -1239,6 +1246,7 @@ AM_CONDITIONAL(ENABLE_GEOIP, [test "$enable_geoip" = "yes"])
 AM_CONDITIONAL(ENABLE_REDIS, [test "$enable_redis" = "yes"])
 AM_CONDITIONAL(WITH_EMBEDDED_CRYPTO, [test "$with_embedded_crypto" = "yes"])
 AM_CONDITIONAL(IVYKIS_INTERNAL, [test "x$IVYKIS_SUBDIRS" != "x"])
+AM_CONDITIONAL(IKSEMEL_INTERNAL, [test "x$LIBIKSEMEL_SUBDIRS" != "x"])
 AM_CONDITIONAL(LIBMONGO_INTERNAL, [test "x$LIBMONGO_SUBDIRS" != "x"])
 AM_CONDITIONAL(LIBRABBITMQ_INTERNAL, [test "x$LIBRABBITMQ_SUBDIRS" != "x"])
 
@@ -1273,8 +1281,9 @@ AC_SUBST(LIBMONGO_CFLAGS)
 AC_SUBST(LIBMONGO_SUBDIRS)
 AC_SUBST(LIBESMTP_CFLAGS)
 AC_SUBST(LIBESMTP_LIBS)
-AC_SUBST(IKSEMEL_CFLAGS)
-AC_SUBST(IKSEMEL_LIBS)
+AC_SUBST(LIBIKSEMEL_CFLAGS)
+AC_SUBST(LIBIKSEMEL_LIBS)
+AC_SUBST(LIBIKSEMEL_SUBDIRS)
 AC_SUBST(LIBRABBITMQ_LIBS)
 AC_SUBST(LIBRABBITMQ_CFLAGS)
 AC_SUBST(LIBRABBITMQ_SUBDIRS)

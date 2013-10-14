@@ -198,6 +198,10 @@ AC_ARG_WITH(libesmtp,
              AC_HELP_STRING([--with-libesmtp=DIR],
                             [use libesmtp library from (prefix) directory DIR]),,)
 
+AC_ARG_WITH(iksemel, 
+             AC_HELP_STRING([--with-iksemel=DIR],
+                             [use iksemel library from (prefix) directory DIR]),,)
+
 AC_ARG_ENABLE(redis,
               [  --disable-redis          Disable REDIS support (default: auto)]
               ,,enable_redis="auto")
@@ -213,6 +217,11 @@ AC_ARG_ENABLE(systemd,
 AC_ARG_ENABLE(geoip,
               [  --enable-geoip          Enable GeoIP support (default: auto)]
               ,,enable_geoip="auto")
+
+AC_ARG_ENABLE(xmpp,
+              [  --enable-xmpp          Enable XMPP support (default: auto)]
+              ,,enable_xmpp="yes")
+
 
 AC_ARG_WITH(compile-date,
 	      [  --without-compile-date  Do not include the compile date in the binary]
@@ -885,7 +894,26 @@ if test "x$enable_smtp" != "xno" && test "x$with_libesmtp" != "no"; then
 	enable_smtp=$libesmtp
 fi
 
- dnl ***************************************************************************
+dnl ***************************************************************************
+dnl iksemel
+dnl ***************************************************************************
+
+if test "x$enable_xmpp" != "xno"; then
+   if test "x$with_iksemel" != "x"; then
+     CPPFLAGS_SAVE="$CPPFLAGS"
+     LDFLAGS_SAVE="$LDFLAGS"
+     CPPFLAGS="$CPPFLAGS -I$with_iksemel/include"
+     LDFLAGS="$LDFLAGS -L$with_iksemel/lib"
+     AC_CHECK_HEADER(iksemel.h, [LIBIKSEMEL_CFLAGS="-I$with_iksemel/include"
+					     LIBIKSEMEL_LIBS="-L$with_iksemel/lib -liksemel"], [iksemel=no])
+     CPPFLAGS="$CPPFLAGS_SAVE" 
+     LDFLAGS="$LDFLAGS_SAVE"
+   else
+     AC_MSG_ERROR(with-iksemel is not specified but xmpp is enabled)
+   fi
+fi 
+
+dnl ***************************************************************************
 dnl libhiredis headers/libraries
 dnl ***************************************************************************
 if test "x$enable_redis" != "xno" && test "x$with_redis" != "no"; then
@@ -1205,6 +1233,7 @@ AM_CONDITIONAL(ENABLE_MONGODB, [test "$enable_mongodb" = "yes"])
 AM_CONDITIONAL(ENABLE_SMTP, [test "$enable_smtp" = "yes"])
 AM_CONDITIONAL(ENABLE_AMQP, [test "$enable_amqp" = "yes"])
 AM_CONDITIONAL(ENABLE_STOMP, [test "$enable_stomp" = "yes"])
+AM_CONDITIONAL(ENABLE_XMPP, [test "$enable_xmpp" = "yes"])
 AM_CONDITIONAL(ENABLE_JSON, [test "$enable_json" = "yes"])
 AM_CONDITIONAL(ENABLE_GEOIP, [test "$enable_geoip" = "yes"])
 AM_CONDITIONAL(ENABLE_REDIS, [test "$enable_redis" = "yes"])
@@ -1244,6 +1273,8 @@ AC_SUBST(LIBMONGO_CFLAGS)
 AC_SUBST(LIBMONGO_SUBDIRS)
 AC_SUBST(LIBESMTP_CFLAGS)
 AC_SUBST(LIBESMTP_LIBS)
+AC_SUBST(IKSEMEL_CFLAGS)
+AC_SUBST(IKSEMEL_LIBS)
 AC_SUBST(LIBRABBITMQ_LIBS)
 AC_SUBST(LIBRABBITMQ_CFLAGS)
 AC_SUBST(LIBRABBITMQ_SUBDIRS)
@@ -1304,5 +1335,6 @@ echo "  JSON support (module)       : ${enable_json:=no}"
 echo "  SMTP support (module)       : ${enable_smtp:=no}"
 echo "  AMQP destination (module)   : ${enable_amqp:=no}"
 echo "  STOMP destination (module)  : ${enable_stomp:=no}"
+echo "  XMPP destination (module)  : ${enable_xmpp:=no}"
 echo "  GEOIP support (module)      : ${enable_geoip:=no}"
 echo "  Redis support (module)      : ${enable_redis:=no}"

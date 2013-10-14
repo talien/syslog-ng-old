@@ -20,6 +20,7 @@ include modules/json/Makefile.am
 include modules/tfgeoip/Makefile.am
 include modules/afstomp/Makefile.am
 include modules/redis/Makefile.am
+include modules/xmpp/Makefile.am
 
 SYSLOG_NG_MODULES	=	\
 	mod-afsocket mod-afstreams mod-affile mod-afprog \

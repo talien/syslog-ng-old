@@ -7,3 +7,6 @@
 [submodule "modules/afamqp/rabbitmq-c"]
 	path = modules/afamqp/rabbitmq-c
 	url = https://github.com/alanxz/rabbitmq-c.git
+[submodule "modules/xmpp/iksemel"]
+	path = modules/xmpp/iksemel
+	url = https://github.com/talien/iksemel.git

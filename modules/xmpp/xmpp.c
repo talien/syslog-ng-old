@@ -5,6 +5,7 @@
 #include "xmpp-parser.h"
 #include "stats.h"
 #include "xmpp-lib.h"
+#include "misc.h"
 
 typedef struct {
   LogThrDestDriver super;

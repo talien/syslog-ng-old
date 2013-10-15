@@ -119,8 +119,7 @@ int
 xmpp_dd_init(LogPipe* s)
 {
    XMPPDestDriver* self = (XMPPDestDriver*) s;
-   if (!log_threaded_dest_driver_init_method(&self->super,xmpp_dd_format_persist_name(self),
-                                                  SCS_XMPP, xmpp_dd_format_stats_instance(self)))
+   if (!log_threaded_dest_driver_init_method(&self->super))
             return FALSE;
 
 
@@ -137,9 +136,7 @@ xmpp_dd_deinit(LogPipe* s)
 {
    XMPPDestDriver* self = (XMPPDestDriver*) s;
    int res;
-   res = log_threaded_dest_driver_deinit_method(&self->super,
-              SCS_XMPP,
-              xmpp_dd_format_stats_instance(self));
+   res = log_threaded_dest_driver_deinit_method(&self->super);
    xmpp_session_destroy(self->session);
    return res;
 };
@@ -215,8 +212,11 @@ LogDriver* xmpp_dd_new()
    self->super.super.super.super.init = xmpp_dd_init;
    self->super.super.super.super.deinit = xmpp_dd_deinit;
    self->super.super.super.super.free_fn = xmpp_dd_free;
+   self->super.stats_source = SCS_XMPP; 
+   self->super.format.stats_instance = xmpp_dd_format_stats_instance;
+   self->super.format.persist_name = xmpp_dd_format_persist_name;
 
-   self->super.worker.init = xmpp_worker_init;
+   self->super.worker.thread_init = xmpp_worker_init;
    self->super.worker.disconnect = xmpp_worker_disconnect;
    self->super.worker.insert = xmpp_worker_send;
 

@@ -84,6 +84,7 @@ pkginclude_HEADERS			+= \
 	lib/ml-batched-timer.h		\
 	lib/msg-format.h		\
 	lib/nvtable.h			\
+	lib/nvcontainer.h			\
 	lib/parse-number.h		\
 	lib/persist-state.h		\
 	lib/plugin.h			\
@@ -95,6 +96,7 @@ pkginclude_HEADERS			+= \
 	lib/scratch-buffers.h		\
 	lib/serialize.h			\
 	lib/service-management.h	\
+	lib/state.h			\
 	lib/stats.h			\
 	lib/stats-timer.h		\
 	lib/str-format.h		\
@@ -167,6 +169,7 @@ lib_libsyslog_ng_la_SOURCES		= \
 	lib/ml-batched-timer.c		\
 	lib/msg-format.c		\
 	lib/nvtable.c			\
+	lib/nvcontainer.c			\
 	lib/parse-number.c		\
 	lib/persist-state.c		\
 	lib/plugin.c			\
@@ -177,6 +180,7 @@ lib_libsyslog_ng_la_SOURCES		= \
 	lib/scratch-buffers.c		\
 	lib/serialize.c			\
 	lib/service-management.c	\
+	lib/state.c			\
 	lib/stats.c			\
 	lib/stats-timer.c		\
 	lib/stringutils.c	\

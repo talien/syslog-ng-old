@@ -62,6 +62,7 @@ enum
 
   M_LOGHOST,
   M_SYSUPTIME,
+  M_RCPTID,
 
   /* only touch this section if you want to add three macros, one w/o
    * prefix, and a R_ and S_ prefixed macro that relates one of the
@@ -225,6 +226,7 @@ LogMacroDef macros[] =
         { "SOURCEIP", M_SOURCE_IP },
         { "SEQNUM", M_SEQNUM },
         { "CONTEXT_ID", M_CONTEXT_ID },
+        { "RCPTID", M_RCPTID },
 
         /* values that have specific behaviour with older syslog-ng config versions */
         { "MSG", M_MESSAGE },
@@ -463,6 +465,16 @@ log_macro_expand(GString *result, gint id, gboolean escape, const LogTemplateOpt
           }
         break;
       }
+
+    case M_RCPTID:
+      {    
+        if (msg->rcptid)
+          {    
+            format_uint64_padded(result,0,0,10,msg->rcptid);
+          }    
+        break;
+      }    
+
     case M_LOGHOST:
       {
         const gchar *hname = get_local_hostname_fqdn();

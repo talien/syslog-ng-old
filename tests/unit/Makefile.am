@@ -17,6 +17,10 @@ tests_unit_TESTS			=  \
 	tests/unit/test_persist_state	   \
 	tests/unit/test_value_pairs     \
 	tests/unit/test_state           \
+	tests/unit/test_msgserialize           \
+	tests/unit/test_msgserialize_benchmark           \
+	tests/unit/test_msgserialize_tags           \
+	tests/unit/test_msgformat_upgrade           \
 	tests/unit/test_rcptid
 
 check_PROGRAMS				+= \
@@ -88,6 +92,22 @@ tests_unit_test_state_LDADD	= \
 
 tests_unit_test_rcptid_CFLAGS = $(TEST_CFLAGS)
 tests_unit_test_rcptid_LDADD	= \
+	$(TEST_LDADD) $(unit_test_extra_modules)
+
+tests_unit_test_msgserialize_CFLAGS = $(TEST_CFLAGS)
+tests_unit_test_msgserialize_LDADD	= \
+	$(TEST_LDADD) $(unit_test_extra_modules)
+
+tests_unit_test_msgserialize_tags_CFLAGS = $(TEST_CFLAGS)
+tests_unit_test_msgserialize_tags_LDADD	= \
+	$(TEST_LDADD) $(unit_test_extra_modules)
+
+tests_unit_test_msgserialize_benchmark_CFLAGS = $(TEST_CFLAGS)
+tests_unit_test_msgserialize_benchmark_LDADD	= \
+	$(TEST_LDADD) $(unit_test_extra_modules)
+
+tests_unit_test_msgformat_upgrade_CFLAGS = $(TEST_CFLAGS)
+tests_unit_test_msgformat_upgrade_LDADD	= \
 	$(TEST_LDADD) $(unit_test_extra_modules)
 
 CLEANFILES				+= \

@@ -13,14 +13,27 @@ lib_libsyslog_ng_la_LDFLAGS		= -no-undefined -release @VERSION@
 
 lib_test_subdirs			= lib_filter lib_logproto lib_parser lib_rewrite lib_template
 
+
+lib_libsyslog_ng_la_DEPENDENCIES    =
+
 if IVYKIS_INTERNAL
-lib_libsyslog_ng_la_DEPENDENCIES	= lib/ivykis/src/libivykis.la
+lib_libsyslog_ng_la_DEPENDENCIES	+= lib/ivykis/src/libivykis.la
 
 lib/ivykis/src/libivykis.la:
 	${MAKE} -C lib/ivykis
 
 CLEAN_SUBDIRS				+= @IVYKIS_SUBDIRS@
 endif
+
+if JSON_INTERNAL
+lib_libsyslog_ng_la_DEPENDENCIES	+= lib/jsonc/libjson-c.la
+
+lib/jsonc/libjson-c.la:
+	${MAKE} -C lib/jsonc
+
+CLEAN_SUBDIRS				+= @JSON_SUBDIRS@
+endif
+
 
 # this is intentionally formatted so conflicts are less likely to arise. one name in every line.
 pkginclude_HEADERS			+= \
@@ -220,6 +233,10 @@ if IVYKIS_INTERNAL
 lib/ivykis/ ivykis: lib/ivykis/src/libivykis.la
 endif
 
-.PHONY: lib/ libsyslog-ng ivykis lib/ivykis/
+if JSON_INTERNAL
+lib/jsonc/ jsonc: lib/jsonc/libjson-c.la
+endif
+
+.PHONY: lib/ libsyslog-ng ivykis lib/ivykis/ lib/jsonc/ jsonc
 
 include lib/tests/Makefile.am

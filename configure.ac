@@ -164,6 +164,12 @@ AC_ARG_WITH(libmongo-client,
                                          Link against the system supplied or the built-in libmongo-client library.]
               ,,with_libmongo_client="internal")
 
+AC_ARG_WITH(jsonc,
+              [  --with-libjsonc=[system/internal]
+                                         Link against the system supplied or the built-in jsonc library.]
+              ,,with_libjsonc="internal")
+
+
 AC_ARG_ENABLE(amqp,
           [  --enable-amqp        Enable amqp destination (default: auto)]
               ,,enable_amqp="auto")
@@ -181,10 +187,6 @@ AC_ARG_WITH(ivykis,
               [  --with-ivykis=[system/internal]
                                          Link against the system supplied or the built-in ivykis library.]
               ,,with_ivykis="internal")
-
-AC_ARG_ENABLE(json,
-              [  --disable-json          Disable JSON support (default: auto)]
-              ,,enable_json="auto")
 
 AC_ARG_ENABLE(smtp,
               [  --disable-smtp          Disable SMTP support (default: auto)]
@@ -209,6 +211,10 @@ AC_ARG_ENABLE(systemd,
 AC_ARG_ENABLE(geoip,
               [  --enable-geoip          Enable GeoIP support (default: auto)]
               ,,enable_geoip="auto")
+
+AC_ARG_ENABLE(json, 
+             [ --disable-json            Disable JSON support (this options throws an error, because JSON support is now mandatory)]
+              ,,enable_json="yes")
 
 AC_ARG_WITH(compile-date,
 	      [  --without-compile-date  Do not include the compile date in the binary]
@@ -693,19 +699,6 @@ if test "x$linking_mode" != "xdynamic" -a "x$blb_cv_static_glib" = "xno"; then
 fi
 
 dnl ***************************************************************************
-dnl json headers/libraries
-dnl ***************************************************************************
-if test "x$enable_json" = "xyes" || test "x$enable_json" = "xauto"; then
-   _with_json="yes"
-   PKG_CHECK_MODULES(JSON_C, json >= $JSON_C_MIN_VERSION,, [JSON_C_LIBS=""; _with_json="no"])
-
-   if test "x$enable_json" = "xyes" && test "x$_with_json" = "xno"; then
-      AC_MSG_ERROR([Could not find json-c, and json support was explicitly enabled.])
-   fi
-   enable_json="$_with_json"
-fi
-
-dnl ***************************************************************************
 dnl geoip headers/libraries
 dnl ***************************************************************************
 if test "x$enable_geoip" = "xyes" || test "x$enable_geoip" = "xauto"; then
@@ -860,8 +853,45 @@ else
 fi
 
 dnl ***************************************************************************
+dnl json headers/libraries
+dnl ***************************************************************************
+AC_MSG_CHECKING(for JSON)
+
+if test "x$enable_json" == "xno"; then
+  AC_MSG_ERROR([JSON support is mandatory since 3.6, it is forbidden to disable it])
+fi
+
+if test "x$with_libjsonc" = "xinternal"; then
+  if test -f "$srcdir/lib/jsonc/json.h"; then
+      AC_CONFIG_SUBDIRS([lib/jsonc])
+
+      # these can only be used in modules/mongodb as it assumes
+      # the current directory just one below libmongo-client
+
+      JSON_LIBS="-Wl,--whole-archive -L\$(top_builddir)/lib/jsonc -ljson-c -Wl,--no-whole-archive"
+      JSON_CFLAGS="-I\$(top_srcdir)/lib/jsonc -I\$(top_builddir)/lib/jsonc"
+      JSON_SUBDIRS="lib/jsonc"
+      enable_json="yes"
+  else
+      AC_MSG_WARN([Internal jsonc sources not found in lib/jsonc])
+      enable_json="no"
+  fi
+elif test "x$with_libjsonc" = "xsystem"; then
+   enable_json="yes"
+   PKG_CHECK_MODULES(JSON_C, json >= $JSON_C_MIN_VERSION,, [JSON_LIBS=""; enable_json="no"])
+fi
+
+if test "$enable_json" != "yes"; then
+   AC_MSG_ERROR([jsonc library cannot be found, although it is mandatory for syslog-ng since 3.6])
+fi
+
+AC_MSG_RESULT($enable_json)
+
+
+dnl ***************************************************************************
 dnl libmongo headers/libraries
 dnl ***************************************************************************
+
 
 if test "x$with_libmongo_client" = "xinternal"; then
 	if test -f "$srcdir/modules/afmongodb/libmongo-client/src/mongo.h"; then
@@ -1054,12 +1084,6 @@ if test "x$enable_amqp" = "xauto"; then
     AC_MSG_RESULT([$enable_amqp])
 fi
 
-if test "x$enable_json" != "xno"; then
-        JSON_LIBS=$JSON_C_LIBS
-        JSON_CFLAGS=$JSON_C_CFLAGS
-        enable_json="yes"
-fi
-
 if test "x$enable_systemd" = "xauto"; then
 	if test "$ostype" = "Linux" -a "$blb_cv_c_so_acceptconn" = "yes"; then
 		enable_systemd=yes
@@ -1102,7 +1126,7 @@ if test "x$module_path" = "x"; then
 	module_path="$moduledir"
 fi
 
-CPPFLAGS="$CPPFLAGS $GLIB_CFLAGS $EVTLOG_CFLAGS $PCRE_CFLAGS $OPENSSL_CFLAGS $LIBNET_CFLAGS $LIBDBI_CFLAGS $IVYKIS_CFLAGS -D_GNU_SOURCE -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
+CPPFLAGS="$CPPFLAGS $GLIB_CFLAGS $EVTLOG_CFLAGS $PCRE_CFLAGS $OPENSSL_CFLAGS $LIBNET_CFLAGS $LIBDBI_CFLAGS $JSON_CFLAGS $IVYKIS_CFLAGS -D_GNU_SOURCE -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
 
 ########################################################
 ## NOTES: on how syslog-ng is linked
@@ -1152,19 +1176,28 @@ MODULE_DEPS_LIBS="\$(top_builddir)/lib/libsyslog-ng.la"
 if test "x$linking_mode" = "xdynamic"; then
 	SYSLOGNG_DEPS_LIBS="$LIBS $BASE_LIBS $GLIB_LIBS $EVTLOG_LIBS $RESOLV_LIBS $LIBCAP_LIBS $PCRE_LIBS $REGEX_LIBS $DL_LIBS"
 
+    CORE_EXTRA_LIBS=""
+    DEPS_EXTRA_LIBS=""
+
 	if test "x$with_ivykis" = "xinternal"; then
 		# when using the internal ivykis, we're linking it statically into libsyslog-ng.so
 
-		TOOL_DEPS_LIBS="$SYSLOGNG_DEPS_LIBS"
-		CORE_DEPS_LIBS="$SYSLOGNG_DEPS_LIBS $IVYKIS_LIBS"
+        CORE_EXTRA_LIBS="$CORE_EXTRA_LIBS $IVYKIS_LIBS"
 	else
 		# otherwise everything needs to link against libivykis.so
 
-		SYSLOGNG_DEPS_LIBS="$SYSLOGNG_DEPS_LIBS $IVYKIS_LIBS"
-
-		TOOL_DEPS_LIBS="$SYSLOGNG_DEPS_LIBS"
-		CORE_DEPS_LIBS="$SYSLOGNG_DEPS_LIBS"
+        DEPS_EXTRA_LIBS="$DEPS_EXTRA_LIBS $IVYKIS_LIBS"
 	fi
+
+    if test "x$with_libjsonc" = "xinternal"; then
+        CORE_EXTRA_LIBS="$CORE_EXTRA_LIBS $JSON_LIBS"
+    else
+        DEPS_EXTRA_LIBS="$DEPS_EXTRA_LIBS $JSON_LIBS"
+    fi
+
+    SYSLOG_NG_DEPS_LIBS="$SYSLOGNG_DEPS_LIBS $DEPS_EXTRA_LIBS"
+    CORE_DEPS_LIBS="$SYSLOGNG_DEPS_LIBS $CORE_EXTRA_LIBS"
+    TOOL_DEPS_LIBS="$SYSLOGNG_DEPS_LIBS"
 
 	# syslog-ng binary is linked with the default link command (e.g. libtool)
 	SYSLOGNG_LINK='$(LINK)'
@@ -1245,6 +1278,7 @@ AM_CONDITIONAL(ENABLE_GEOIP, [test "$enable_geoip" = "yes"])
 AM_CONDITIONAL(ENABLE_REDIS, [test "$enable_redis" = "yes"])
 AM_CONDITIONAL(WITH_EMBEDDED_CRYPTO, [test "$with_embedded_crypto" = "yes"])
 AM_CONDITIONAL(IVYKIS_INTERNAL, [test "x$IVYKIS_SUBDIRS" != "x"])
+AM_CONDITIONAL(JSON_INTERNAL, [test "x$JSON_SUBDIRS" != "x"])
 AM_CONDITIONAL(LIBMONGO_INTERNAL, [test "x$LIBMONGO_SUBDIRS" != "x"])
 AM_CONDITIONAL(LIBRABBITMQ_INTERNAL, [test "x$LIBRABBITMQ_SUBDIRS" != "x"])
 AM_CONDITIONAL(ENABLE_MAN_PAGES, [test "x$enable_man_pages" = "xyes"])
@@ -1285,6 +1319,7 @@ AC_SUBST(LIBRABBITMQ_CFLAGS)
 AC_SUBST(LIBRABBITMQ_SUBDIRS)
 AC_SUBST(JSON_LIBS)
 AC_SUBST(JSON_CFLAGS)
+AC_SUBST(JSON_SUBDIRS)
 AC_SUBST(IVYKIS_SUBDIRS)
 AC_SUBST(RESOLV_LIBS)
 AC_SUBST(CFLAGS_NOWARN_POINTER_SIGN)
